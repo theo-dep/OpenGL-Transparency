@@ -7,18 +7,27 @@
 // Copyright (c) NVIDIA Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-uniform samplerRECT DepthBlenderTex;
-uniform samplerRECT FrontBlenderTex;
-uniform samplerRECT BackBlenderTex;
+// Alec
+//uniform samplerRECT DepthBlenderTex;
+//uniform samplerRECT FrontBlenderTex;
+//uniform samplerRECT BackBlenderTex;
+uniform sampler2DRect DepthBlenderTex;
+uniform sampler2DRect FrontBlenderTex;
+uniform sampler2DRect BackBlenderTex;
 
 void main(void)
 {
-	vec4 frontColor = textureRect(FrontBlenderTex, gl_FragCoord.xy);
-	vec3 backColor = textureRect(BackBlenderTex, gl_FragCoord.xy).rgb;
+        // Alec
+	//vec4 frontColor = textureRect(FrontBlenderTex, gl_FragCoord.xy);
+	//vec3 backColor = textureRect(BackBlenderTex, gl_FragCoord.xy).rgb;
+	vec4 frontColor = texture2DRect(FrontBlenderTex, gl_FragCoord.xy);
+	vec3 backColor = texture2DRect(BackBlenderTex, gl_FragCoord.xy).rgb;
 	float alphaMultiplier = 1.0 - frontColor.w;
 
 	// front + back
-	gl_FragColor.rgb = frontColor + backColor * alphaMultiplier;
+        // Alec
+	//gl_FragColor.rgb = frontColor + backColor * alphaMultiplier;
+	gl_FragColor.rgb = frontColor.rgb + backColor * alphaMultiplier;
 	
 	// front blender
 	//gl_FragColor.rgb = frontColor + vec3(alphaMultiplier);

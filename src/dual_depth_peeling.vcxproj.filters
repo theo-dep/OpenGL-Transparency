@@ -1,0 +1,99 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{773784c7-5a71-4eb9-a822-4667d7dbc4fc}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(ProjectName)\dual_depth_peeling.cpp" />
+    <ClCompile Include="$(ProjectName)\GLSLProgramObject.cpp" />
+    <ClCompile Include="$(ProjectName)\OSD.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(ProjectName)\GLSLProgramObject.h" />
+    <ClInclude Include="$(SolutionDir)common\include\nvShaderUtils.h" />
+    <ClInclude Include="$(ProjectName)\OSD.h" />
+    <ClInclude Include="$(ProjectName)\Timer.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(ProjectName)\shaders\dual_peeling_blend_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\dual_peeling_blend_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\dual_peeling_final_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\dual_peeling_final_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\dual_peeling_init_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\dual_peeling_init_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\dual_peeling_peel_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\dual_peeling_peel_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\front_peeling_blend_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\front_peeling_blend_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\front_peeling_final_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\front_peeling_final_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\front_peeling_init_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\front_peeling_init_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\front_peeling_peel_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\front_peeling_peel_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\shade_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\shade_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\wavg_final_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\wavg_final_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\wavg_init_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\wavg_init_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\wsum_final_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\wsum_final_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\wsum_init_fragment.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="$(ProjectName)\shaders\wsum_init_vertex.glsl">
+      <Filter>shaders</Filter>
+    </None>
+  </ItemGroup>
+</Project>

@@ -13,8 +13,16 @@
 #include <sstream>
 #include <string>
 #include <time.h>
+
+
+// Alec
+#ifdef __APPLE__
+#include <OpenGL/GL.h>
+#include <GLUT/glut.h>
+#else
 #include <GL/glew.h>
 #include <GL/glut.h>
+#endif
 
 enum {
 	DUAL_PEELING_MODE,

@@ -7,7 +7,8 @@
 // Copyright (c) NVIDIA Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#extension ARB_draw_buffers : require
+// Alec
+//#extension ARB_draw_buffers : require
 
 vec4 ShadeFragment();
 

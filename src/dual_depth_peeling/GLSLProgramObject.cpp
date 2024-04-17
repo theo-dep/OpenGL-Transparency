@@ -41,7 +41,7 @@ void GLSLProgramObject::destroy()
 
 void GLSLProgramObject::attachVertexShader(std::string filename)
 {
-	//std::cerr << filename << std::endl;
+	std::cerr << filename << std::endl;
     std::string resolved_path;
 
     if (sdkPath.getFilePath( filename.c_str(), resolved_path)) {
@@ -60,7 +60,7 @@ void GLSLProgramObject::attachVertexShader(std::string filename)
 
 void GLSLProgramObject::attachFragmentShader(std::string filename)
 {
-	//std::cerr << filename << std::endl;
+	std::cerr << filename << std::endl;
     std::string resolved_path;
 
     if (sdkPath.getFilePath( filename.c_str(), resolved_path)) {

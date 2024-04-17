@@ -53,11 +53,11 @@ void DrawOsd(char mode, float opacity, int numPasses, float fps)
 
 	glBegin(GL_QUADS);
 	{
-		glColor3f(.2,.2,.2);
-		glVertex2f(x1, y1);
-		glVertex2f(x1+(float)w, y1);
-		glVertex2f(x1+(float)w, y2);
-		glVertex2f(x1, y2);
+		glColor3f(.2f,.2f,.2f);
+		glVertex2f(static_cast<float>(x1), static_cast<float>(y1));
+		glVertex2f(static_cast<float>(x1+w), static_cast<float>(y1));
+		glVertex2f(static_cast<float>(x1+w), static_cast<float>(y2));
+		glVertex2f(static_cast<float>(x1), static_cast<float>(y2));
 	}
 	glEnd();
 

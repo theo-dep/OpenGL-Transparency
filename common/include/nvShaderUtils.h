@@ -12,7 +12,12 @@
 #include <stdio.h>
 #include <string.h>
 
+// Alec
+#ifdef __APPLE__
+#include <OpenGL/GL.h>
+#else
 #include <GL/glew.h>
+#endif
 
 namespace nv
 {

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{D6975093-6843-4E4F-BD2D-31F08E226A11}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <SpectreMitigation>false</SpectreMitigation>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <SpectreMitigation>false</SpectreMitigation>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>16.0.29403.142</_ProjectFileVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <TargetName>$(ProjectName)d</TargetName>
+    <OutDir>$(SolutionDir)bin\</OutDir>
+    <IntDir>$(SolutionDir)$(Platform)\$(Configuration)\$(ProjectName)\$(BaseIntermediateOutputPath)</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)bin\</OutDir>
+    <IntDir>$(SolutionDir)$(Platform)\$(Configuration)\$(ProjectName)\$(BaseIntermediateOutputPath)</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>$(SolutionDir)common\include;$(SolutionDir)common\nvModel;$(SolutionDir)thirdparty\freeglut-3.0.0\include;$(SolutionDir)thirdparty\glew-2.1.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;GLEW_STATIC;NOMINMAX;_CRT_SECURE_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>glew32s.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <AdditionalLibraryDirectories>$(SolutionDir)thirdparty\glew-2.1.0\lib;$(SolutionDir)thirdparty\freeglut-3.0.0\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(OutDir)dual_depth_peeling.pdb</ProgramDatabaseFile>
+      <SubSystem>Console</SubSystem>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)common\include;$(SolutionDir)common\nvModel;$(SolutionDir)thirdparty\freeglut-3.0.0\include;$(SolutionDir)thirdparty\glew-2.1.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;GLEW_STATIC;NOMINMAX;_CRT_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>glew32s.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <AdditionalLibraryDirectories>$(SolutionDir)thirdparty\glew-2.1.0\lib;$(SolutionDir)thirdparty\freeglut-3.0.0\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="$(ProjectName)\dual_depth_peeling.cpp" />
+    <ClCompile Include="$(ProjectName)\GLSLProgramObject.cpp" />
+    <ClCompile Include="$(ProjectName)\OSD.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(SolutionDir)common\include\nvShaderUtils.h" />
+    <ClInclude Include="$(ProjectName)\GLSLProgramObject.h" />
+    <ClInclude Include="$(ProjectName)\OSD.h" />
+    <ClInclude Include="$(ProjectName)\Timer.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(ProjectName)\shaders\dual_peeling_blend_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\dual_peeling_blend_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\dual_peeling_final_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\dual_peeling_final_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\dual_peeling_init_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\dual_peeling_init_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\dual_peeling_peel_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\dual_peeling_peel_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\front_peeling_blend_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\front_peeling_blend_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\front_peeling_final_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\front_peeling_final_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\front_peeling_init_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\front_peeling_init_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\front_peeling_peel_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\front_peeling_peel_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\shade_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\shade_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\wavg_final_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\wavg_final_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\wavg_init_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\wavg_init_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\wsum_final_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\wsum_final_vertex.glsl" />
+    <None Include="$(ProjectName)\shaders\wsum_init_fragment.glsl" />
+    <None Include="$(ProjectName)\shaders\wsum_init_vertex.glsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\common\nvModel\nvModel.vcxproj">
+      <Project>{da20bcc8-2b7c-4fc2-802e-987af4816c66}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
