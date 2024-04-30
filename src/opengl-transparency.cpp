@@ -971,7 +971,7 @@ void SaveFramebuffer()
     glReadBuffer(GL_BACK);
     glReadPixels(0, 0, g_imageWidth, g_imageHeight, GL_RGB, GL_FLOAT, pixels);
 
-    char *filename = "image.ppm";
+    char filename[] = "image.ppm";
     std::ofstream fp(filename);
     fp << "P3\n" << g_imageWidth << " " << g_imageHeight << std::endl << "255\n";
     for (int i = g_imageHeight-1; i >=0; i--)

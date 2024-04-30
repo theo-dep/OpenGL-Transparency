@@ -104,14 +104,14 @@ inline GLuint LinkGLSLProgram( GLuint vertexShader, GLuint fragmentShader)
 
     char * infoLog = new char[infoLogLength];
     glGetProgramInfoLog(program, infoLogLength, &charsWritten, infoLog);
-    printf(infoLog);
+    printf("%s", infoLog);
     delete [] infoLog;
 #endif
 
     // Test linker result.
     GLint linkSucceed = GL_FALSE;
     glGetProgramiv(program, GL_LINK_STATUS, &linkSucceed);
-    
+
     if (linkSucceed == GL_FALSE)
     {
         glDeleteProgram(program);
@@ -141,14 +141,14 @@ inline GLuint LinkGLSLProgram( GLuint vertexShader, GLuint geometryShader, GLint
 
     char * infoLog = new char[infoLogLength];
     glGetProgramInfoLog(program, infoLogLength, &charsWritten, infoLog);
-    printf(infoLog);
+    printf("%s", infoLog);
     delete [] infoLog;
 #endif
 
     // Test linker result.
     GLint linkSucceed = GL_FALSE;
     glGetProgramiv(program, GL_LINK_STATUS, &linkSucceed);
-    
+
     if (linkSucceed == GL_FALSE)
     {
         glDeleteProgram(program);
@@ -220,4 +220,4 @@ inline GLuint CompileASMShaderFromFile( GLenum target, const char* filename)
 
 } // nv namespace
 
-#endif 
+#endif

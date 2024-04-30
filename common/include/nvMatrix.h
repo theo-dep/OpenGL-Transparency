@@ -29,7 +29,7 @@
 
      * The names of contributors to this software may not be used
 	   to endorse or promote products derived from this software
-	   without specific prior written permission. 
+	   without specific prior written permission.
 
        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 	   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -41,8 +41,8 @@
 	   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 	   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
 	   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-	   ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
-	   POSSIBILITY OF SUCH DAMAGE. 
+	   ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+	   POSSIBILITY OF SUCH DAMAGE.
 
 
     Cass Everitt - cass@r3.nu
@@ -70,7 +70,7 @@ public:
 
     matrix4() { make_identity(); }
 
-    matrix4( T t ) 
+    matrix4( T t )
     { set_value(t); }
 
     matrix4( const T * m )
@@ -114,11 +114,11 @@ public:
     void make_identity() {
         element(0,0) = 1.0;
         element(0,1) = 0.0;
-        element(0,2) = 0.0; 
+        element(0,2) = 0.0;
         element(0,3) = 0.0;
 
         element(1,0) = 0.0;
-        element(1,1) = 1.0; 
+        element(1,1) = 1.0;
         element(1,2) = 0.0;
         element(1,3) = 0.0;
 
@@ -127,8 +127,8 @@ public:
         element(2,2) = 1.0;
         element(2,3) = 0.0;
 
-        element(3,0) = 0.0; 
-        element(3,1) = 0.0; 
+        element(3,0) = 0.0;
+        element(3,1) = 0.0;
         element(3,2) = 0.0;
         element(3,3) = 1.0;
     }
@@ -182,7 +182,7 @@ public:
         s[2] = &r3[0];
         s[3] = &r4[0];
 
-        register int i,j,p,jj;
+        int i,j,p,jj;
         for(i=0;i<4;i++) {
             for(j=0;j<4;j++) {
                 s[i][j] = m.element(i,j);
@@ -236,7 +236,7 @@ public:
         // Now we have an upper triangular matrix.
         //
         //  x x x x | y y y y
-        //  0 x x x | y y y y 
+        //  0 x x x | y y y y
         //  0 0 x x | y y y y
         //  0 0 0 x | y y y y
         //
@@ -245,7 +245,7 @@ public:
         //  1 0 0 0 | z z z z
         //  0 1 0 0 | z z z z
         //  0 0 1 0 | z z z z
-        //  0 0 0 1 | z z z z 
+        //  0 0 0 1 | z z z z
         //
 
         T mij;
@@ -270,7 +270,7 @@ public:
 
         for(int i=0;i<4;i++)
             for(int j=0;j<4;j++)
-                mtrans(i,j) = m.element(j,i);		
+                mtrans(i,j) = m.element(j,i);
         return mtrans;
     }
 
@@ -349,7 +349,7 @@ public:
         return *this;
     }
 
-    
+
     friend bool operator == ( const matrix4 & lhs, const matrix4 & rhs ) {
         bool r = true;
         for (int i = 0; i < 16; i++)
