@@ -15,7 +15,7 @@
 
 #pragma warning( disable : 4996 )
 
-// Alec 
+// Alec
 //#include <nvModel.h>
 #include "nvModel.h"
 #include <nvShaderUtils.h>
@@ -61,7 +61,7 @@ bool g_useOQ = true;
 GLuint g_queryId;
 
 #define MODEL_FILENAME "media/models/dragon.obj"
-#define SHADER_PATH "src/dual_depth_peeling/shaders/"
+#define SHADER_PATH "src/shaders/"
 
 static nv::SDKPath sdkPath;
 
@@ -338,7 +338,7 @@ void MakeFullScreenQuad()
     gluOrtho2D(0.0, 1.0, 0.0, 1.0);
     glBegin(GL_QUADS);
     {
-        glVertex2f(0.0, 0.0); 
+        glVertex2f(0.0, 0.0);
         glVertex2f(1.0, 0.0);
         glVertex2f(1.0, 1.0);
         glVertex2f(0.0, 1.0);
@@ -509,7 +509,7 @@ void ReloadShaders()
 
 //--------------------------------------------------------------------------
 void InitGL()
-{ 
+{
     // Allocate render targets first
     InitDualPeelingRenderTargets();
     InitFrontPeelingRenderTargets();
@@ -575,7 +575,7 @@ void RenderDualPeeling()
         currId = pass % 2;
         int prevId = 1 - currId;
         int bufId = currId * 3;
-        
+
         //glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_dualPeelingFboId[currId]);
 
         glDrawBuffers(2, &g_drawBuffers[bufId+1]);
@@ -712,7 +712,7 @@ void RenderFrontToBackPeeling()
         glBlendEquation(GL_FUNC_ADD);
         glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE,
                             GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
-        
+
         g_shaderFrontBlend.bind();
         g_shaderFrontBlend.bindTextureRECT("TempTex", g_frontColorTexId[currId], 0);
         glCallList(g_quadDisplayList);
