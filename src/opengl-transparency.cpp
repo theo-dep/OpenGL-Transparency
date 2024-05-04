@@ -28,7 +28,7 @@
 #include <GLUT/glut.h>
 #else
 #include <GL/glew.h>
-#include <GL/glut.h>
+#include <GL/freeglut.h>
 #endif
 
 #include <iostream>
@@ -1085,6 +1085,9 @@ int main(int argc, char *argv[])
     glutInit(&argc, argv);
     glutCreateWindow("Dual Depth Peeling");
 
+    glutInitContextVersion(2, 0);
+    glutInitContextProfile(GLUT_CORE_PROFILE);
+
 #ifndef __APPLE__
     if (glewInit() != GLEW_OK)
     {
@@ -1109,6 +1112,11 @@ int main(int argc, char *argv[])
         exit(1);
     }
 #endif
+
+    printf("GL version %s\n", glGetString(GL_VERSION));
+    printf("GL vendor %s\n", glGetString(GL_VENDOR));
+    printf("GL render %s\n", glGetString(GL_RENDERER));
+    printf("GLSL version %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
     InitGL();
     InitMenus();
