@@ -15,8 +15,6 @@
 
 #pragma warning( disable : 4996 )
 
-// Alec
-//#include <nvModel.h>
 #include "nvModel.h"
 #include <nvShaderUtils.h>
 #include <nvSDKPath.h>
@@ -25,7 +23,6 @@
 #include "Timer.h"
 #include "OSD.h"
 
-// Alec
 #ifdef __APPLE__
 #include <OpenGL/GL.h>
 #include <GLUT/glut.h>
@@ -153,26 +150,24 @@ void InitDualPeelingRenderTargets()
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                // Alec
-        //glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_FLOAT_RG32_NV, g_imageWidth, g_imageHeight,
-                glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RG32F, g_imageWidth, g_imageHeight,
-                     0, GL_RGB, GL_FLOAT, 0);
+        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RG32F,
+                     g_imageWidth, g_imageHeight, 0, GL_RGB, GL_FLOAT, 0);
 
         glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_dualFrontBlenderTexId[i]);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, g_imageWidth, g_imageHeight,
-                     0, GL_RGBA, GL_FLOAT, 0);
+        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
+                     g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
 
         glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_dualBackTempTexId[i]);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, g_imageWidth, g_imageHeight,
-                     0, GL_RGBA, GL_FLOAT, 0);
+        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
+                     g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
     }
 
     glGenTextures(1, &g_dualBackBlenderTexId);
@@ -181,8 +176,8 @@ void InitDualPeelingRenderTargets()
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGB, g_imageWidth, g_imageHeight,
-                 0, GL_RGB, GL_FLOAT, 0);
+    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGB,
+                 g_imageWidth, g_imageHeight, 0, GL_RGB, GL_FLOAT, 0);
 
     glGenFramebuffersEXT(1, &g_dualBackBlenderFboId);
     glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_dualBackBlenderFboId);
@@ -238,8 +233,6 @@ void InitFrontPeelingRenderTargets()
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                // Alec
-        //glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_DEPTH_COMPONENT32F_NV,
         glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_DEPTH_COMPONENT,
                      g_imageWidth, g_imageHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 
@@ -248,8 +241,8 @@ void InitFrontPeelingRenderTargets()
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, g_imageWidth, g_imageHeight,
-                     0, GL_RGBA, GL_FLOAT, 0);
+        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
+                     g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
 
         glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_frontFboId[i]);
         glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
@@ -264,8 +257,8 @@ void InitFrontPeelingRenderTargets()
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, g_imageWidth, g_imageHeight,
-                 0, GL_RGBA, GL_FLOAT, 0);
+    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
+                 g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
 
     glGenFramebuffersEXT(1, &g_frontColorBlenderFboId);
     glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_frontColorBlenderFboId);
@@ -304,8 +297,6 @@ void InitAccumulationRenderTargets()
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        // Alec
-    //glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_FLOAT_R32_NV,
     glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_R32F,
                  g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, NULL);
 
@@ -1033,14 +1024,10 @@ void keyboardFunc(unsigned char key, int x, int y)
             break;
         case 'a':
             g_opacity -= 0.05f;
-                        //Alec
-            //g_opacity = max(g_opacity, 0.0);
             g_opacity = std::max(g_opacity, 0.0f);
             break;
         case 'd':
             g_opacity += 0.05f;
-                        //Alec
-            //g_opacity = min(g_opacity, 1.0);
             g_opacity = std::min(g_opacity, 1.0f);
             break;
         case 27:
@@ -1098,7 +1085,6 @@ int main(int argc, char *argv[])
     glutInit(&argc, argv);
     glutCreateWindow("Dual Depth Peeling");
 
-        //Alec
 #ifndef __APPLE__
     if (glewInit() != GLEW_OK)
     {

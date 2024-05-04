@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <string.h>
 
-// Alec
 #ifdef __APPLE__
 #include <OpenGL/GL.h>
 #else
@@ -116,7 +115,7 @@ inline GLuint LinkGLSLProgram( GLuint vertexShader, GLuint fragmentShader)
     // Test linker result.
     GLint linkSucceed = GL_FALSE;
     glGetProgramiv(program, GL_LINK_STATUS, &linkSucceed);
-    
+
     if (linkSucceed == GL_FALSE)
     {
         glDeleteProgram(program);
@@ -153,7 +152,7 @@ inline GLuint LinkGLSLProgram( GLuint vertexShader, GLuint geometryShader, GLint
     // Test linker result.
     GLint linkSucceed = GL_FALSE;
     glGetProgramiv(program, GL_LINK_STATUS, &linkSucceed);
-    
+
     if (linkSucceed == GL_FALSE)
     {
         glDeleteProgram(program);
@@ -225,4 +224,4 @@ inline GLuint CompileASMShaderFromFile( GLenum target, const char* filename)
 
 } // nv namespace
 
-#endif 
+#endif

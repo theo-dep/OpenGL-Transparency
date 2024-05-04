@@ -29,7 +29,7 @@
 
      * The names of contributors to this software may not be used
 	   to endorse or promote products derived from this software
-	   without specific prior written permission. 
+	   without specific prior written permission.
 
        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 	   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -41,8 +41,8 @@
 	   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 	   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
 	   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-	   ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
-	   POSSIBILITY OF SUCH DAMAGE. 
+	   ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+	   POSSIBILITY OF SUCH DAMAGE.
 
 
     Cass Everitt - cass@r3.nu
@@ -61,7 +61,7 @@ template <class T> class vec4;
 // vec2 - template class for 2-tuple vector
 //
 //////////////////////////////////////////////////////////////////////
-template <class T>   
+template <class T>
 class vec2 {
 public:
 
@@ -97,21 +97,21 @@ public:
     explicit vec2( const vec4<T> &u) {
         for(int i = 0; i < size(); i++) _array[i] = u._array[i];
     }
-    
+
     const T * get_value() const {
         return _array;
     }
-    
+
     vec2<T> & set_value( const T * rhs ) {
         for(int i = 0; i < size(); i++) _array[i] = rhs[i];
         return *this;
     }
-    
+
     // indexing operators
     T & operator [] ( int i ) {
         return _array[i];
     }
-    
+
     const T & operator [] ( int i ) const {
         return _array[i];
     }
@@ -153,8 +153,6 @@ public:
     // component-wise vector divide assign
     friend vec2<T> & operator /= ( vec2<T> &lhs, const vec2<T> & rhs ) {
         for(int i = 0; i < lhs.size(); i++) lhs._array[i] /= rhs._array[i];
-        // Alec
-        //return *this;
         return lhs;
     }
 
@@ -183,7 +181,7 @@ public:
         return rt += rhs;
     }
 
-    // vector subtract 
+    // vector subtract
     friend vec2<T> operator - ( const vec2<T> & lhs, const vec2<T> & rhs) {
         vec2<T> rt(lhs);
         return rt -= rhs;
@@ -240,7 +238,7 @@ public:
             r &= lhs._array[i] != rhs._array[i];
         return r;
     }
-   
+
     //data intentionally left public to allow vec2.x
     union {
         struct {
@@ -297,21 +295,21 @@ public:
         y = u.y;
         z = v0;
     }
-    
+
     const T * get_value() const {
         return _array;
     }
-    
+
     vec3<T> & set_value( const T * rhs ) {
         for(int i = 0; i < size(); i++) _array[i] = rhs[i];
         return *this;
     }
-    
+
     // indexing operators
     T & operator [] ( int i ) {
         return _array[i];
     }
-    
+
     const T & operator [] ( int i ) const {
         return _array[i];
     }
@@ -381,7 +379,7 @@ public:
         return rt += rhs;
     }
 
-    // vector subtract 
+    // vector subtract
     friend vec3<T> operator - ( const vec3<T> & lhs, const vec3<T> & rhs) {
         vec3<T> rt(lhs);
         return rt -= rhs;
@@ -455,7 +453,7 @@ public:
 
         return r;
     }
-   
+
     //data intentionally left public to allow vec2.x
     union {
         struct {
@@ -517,21 +515,21 @@ public:
         z = v0;
         w = v1;
     }
-    
+
     const T * get_value() const {
         return _array;
     }
-    
+
     vec4<T> & set_value( const T * rhs ) {
         for(int i = 0; i < size(); i++) _array[i] = rhs[i];
         return *this;
     }
-    
+
     // indexing operators
     T & operator [] ( int i ) {
         return _array[i];
     }
-    
+
     const T & operator [] ( int i ) const {
         return _array[i];
     }
@@ -601,7 +599,7 @@ public:
         return rt += rhs;
     }
 
-    // vector subtract 
+    // vector subtract
     friend vec4<T> operator - ( const vec4<T> & lhs, const vec4<T> & rhs) {
         vec4<T> rt(lhs);
         return rt -= rhs;
@@ -658,7 +656,7 @@ public:
             r &= lhs._array[i] != rhs._array[i];
         return r;
     }
-   
+
     //data intentionally left public to allow vec2.x
     union {
         struct {
@@ -679,8 +677,7 @@ public:
 
 // compute the dot product of two vectors
 template<class T>
-inline typename T::value_type dot( const T & lhs, const T & rhs ) { 
-  // Alec
+inline typename T::value_type dot( const T & lhs, const T & rhs ) {
     typename T::value_type r = 0;
     for(int i = 0; i < lhs.size(); i++) r += lhs._array[i] * rhs._array[i];
     return r;
@@ -689,36 +686,29 @@ inline typename T::value_type dot( const T & lhs, const T & rhs ) {
 // return the length of the provided vector
 template< class T>
 inline typename T::value_type length( const T & vec) {
-  // Alec
     typename T::value_type r = 0;
-    for(int i = 0; i < vec.size(); i++) r += vec._array[i]*vec._array[i]; 
-    // Alec
-    //return T::value_type(sqrt(r));
+    for(int i = 0; i < vec.size(); i++) r += vec._array[i]*vec._array[i];
     return typename T::value_type(sqrt(r));
 }
 
 // return the squared norm
 template< class T>
 inline typename T::value_type square_norm( const T & vec) {
-  // Alec
     typename T::value_type r = 0;
-    for(int i = 0; i < vec.size(); i++) r += vec._array[i]*vec._array[i]; 
+    for(int i = 0; i < vec.size(); i++) r += vec._array[i]*vec._array[i];
     return r;
 }
 
 // return the normalized version of the vector
 template< class T>
-inline T normalize( const T & vec) { 
-  // Alec
+inline T normalize( const T & vec) {
     typename T::value_type sum(0);
     T r;
-    for(int i = 0; i < vec.size(); i++) 
+    for(int i = 0; i < vec.size(); i++)
         sum += vec._array[i] * vec._array[i];
-    // Alec
-    //sum = T::value_type(sqrt(sum));
     sum = typename T::value_type(sqrt(sum));
     if (sum > 0)
-        for(int i = 0; i < vec.size(); i++) 
+        for(int i = 0; i < vec.size(); i++)
             r._array[i] = vec._array[i] / sum;
     return r;
 }

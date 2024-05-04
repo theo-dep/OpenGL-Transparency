@@ -21,7 +21,6 @@
 #include <vector>
 #include <assert.h>
 
-// Alec
 #ifdef __APPLE__
 #include <OpenGL/GL.h>
 #else
@@ -78,7 +77,7 @@ namespace nv {
         //  combination of position, normal, tex coords, etc that are
         //  used in the model. The prim parameter, tells the model
         //  what type of index list to compile. By default it compiles
-        //  a simple triangle mesh with no connectivity. 
+        //  a simple triangle mesh with no connectivity.
         //
         //////////////////////////////////////////////////////////////
         NVSDKENTRY void compileModel( PrimType prim = eptTriangles);
@@ -230,7 +229,7 @@ namespace nv {
             bool (*reader)( const char* file, Model& i);
         };
 
-        static FormatInfo formatTable[]; 
+        static FormatInfo formatTable[];
 
         NVSDKENTRY static bool loadObjFromFile( const char *file, Model &m);
     };

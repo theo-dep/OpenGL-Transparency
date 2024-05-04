@@ -29,7 +29,7 @@
 
      * The names of contributors to this software may not be used
 	   to endorse or promote products derived from this software
-	   without specific prior written permission. 
+	   without specific prior written permission.
 
        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 	   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
@@ -41,8 +41,8 @@
 	   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 	   CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
 	   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-	   ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
-	   POSSIBILITY OF SUCH DAMAGE. 
+	   ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+	   POSSIBILITY OF SUCH DAMAGE.
 
 
     Cass Everitt - cass@r3.nu
@@ -108,18 +108,11 @@ public:
 
     const T * get_value() const
     {
-      // Alec
-        //return  &q[0];
         return  &_array[0];
     }
 
     void get_value( T &q0, T &q1, T &q2, T &q3 ) const
     {
-      // Alec
-        //q0 = q[0];
-        //q1 = q[1];
-        //q2 = q[2];
-        //q3 = q[3];
         q0 = _array[0];
         q1 = _array[1];
         q2 = _array[2];
@@ -248,13 +241,13 @@ public:
             // axis too small.
             x = y = z = T(0.0);
             w = T(1.0);
-        } 
-        else 
+        }
+        else
         {
             theta *= T(0.5);
             T sin_theta = T(sin(theta));
 
-            if ( sqnorm != T(1)) 
+            if ( sqnorm != T(1))
                 sin_theta /= T(sqrt(sqnorm));
             x = sin_theta * axis[0];
             y = sin_theta * axis[1];
@@ -275,15 +268,13 @@ public:
         alpha = dot( p1, p2);
 
         if( alpha == T(1.0) ) {
-            *this = quaternion(); 
-            return *this; 
+            *this = quaternion();
+            return *this;
         }
 
         // ensures that the anti-parallel case leads to a positive dot
         if( alpha == T(-1.0))
         {
-          // Alec
-            //vec3 v;
             vec3<T> v;
 
             if(p1[0] != p1[1] || p1[0] != p1[2])
@@ -298,8 +289,8 @@ public:
             return *this;
         }
 
-        p1 = normalize( cross( p1, p2));  
-        
+        p1 = normalize( cross( p1, p2));
+
         set_value(p1,T(acos(alpha)));
 
         return *this;
@@ -334,7 +325,7 @@ public:
     friend quaternion normalize( const quaternion<T> &q) {
         quaternion r(q);
         T rnorm = T(1.0) / T(sqrt( q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z));
-        
+
         r.x *= rnorm;
         r.y *= rnorm;
         r.z *= rnorm;
@@ -359,9 +350,9 @@ public:
     //
     void mult_vec( const vec3<T> &src, vec3<T> &dst ) const
     {
-        T v_coef = w * w - x * x - y * y - z * z;                     
-        T u_coef = T(2.0) * (src[0] * x + src[1] * y + src[2] * z);  
-        T c_coef = T(2.0) * w;                                       
+        T v_coef = w * w - x * x - y * y - z * z;
+        T u_coef = T(2.0) * (src[0] * x + src[1] * y + src[2] * z);
+        T c_coef = T(2.0) * w;
 
         dst.v[0] = v_coef * src.v[0] + u_coef * x + c_coef * (y * src.v[2] - z * src.v[1]);
         dst.v[1] = v_coef * src.v[1] + u_coef * y + c_coef * (z * src.v[0] - x * src.v[2]);
@@ -370,14 +361,11 @@ public:
 
     void mult_vec( vec3<T> & src_and_dst) const
     {
-      // Alec
-        //mult_vec(vec3(src_and_dst), src_and_dst);
         mult_vec(vec3<T>(src_and_dst), src_and_dst);
     }
 
-    void scale_angle( T scaleFactor ) {
-      // Alec
-        //vec3 axis;
+    void scale_angle( T scaleFactor )
+    {
         vec3<T> axis;
         T radians;
 
@@ -398,7 +386,7 @@ public:
             cos_omega = -cos_omega;
 
         // complementary interpolation parameter
-        T beta = T(1) - alpha;     
+        T beta = T(1) - alpha;
 
         if(cos_omega >= T(1))
             return p;
@@ -427,29 +415,29 @@ public:
         return _array[i];
     }
 
-    
+
     friend bool operator == ( const quaternion<T> & lhs, const quaternion<T> & rhs ) {
         bool r = true;
         for (int i = 0; i < 4; i++)
-            r &= lhs._array[i] == rhs._array[i]; 
+            r &= lhs._array[i] == rhs._array[i];
         return r;
     }
 
     friend bool operator != ( const quaternion<T> & lhs, const quaternion<T> & rhs ) {
         bool r = true;
         for (int i = 0; i < 4; i++)
-            r &= lhs._array[i] == rhs._array[i]; 
+            r &= lhs._array[i] == rhs._array[i];
         return r;
     }
 
-    friend quaternion<T> operator * ( const quaternion<T> & lhs, const quaternion<T> & rhs ) {	
-        quaternion r(lhs); 
-        r *= rhs; 
-        return r; 
+    friend quaternion<T> operator * ( const quaternion<T> & lhs, const quaternion<T> & rhs ) {
+        quaternion r(lhs);
+        r *= rhs;
+        return r;
     }
 
 
-    union 
+    union
     {
         struct
         {

@@ -14,8 +14,6 @@
 #include <string>
 #include <time.h>
 
-
-// Alec
 #ifdef __APPLE__
 #include <OpenGL/GL.h>
 #include <GLUT/glut.h>
