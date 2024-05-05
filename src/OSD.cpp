@@ -9,9 +9,12 @@
 #pragma warning( disable : 4996 )
 
 #include "OSD.h"
+
+#include <GL/glew.h>
+#include <GL/glut.h>
+
 #include <iostream>
 #include <sstream>
-using namespace std;
 
 #define NUM_LINES 4
 
@@ -23,7 +26,7 @@ void DrawText(int x, int y, const char *text)
 	{
 		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *text);
 		text++;
-	}   
+	}
 }
 
 //--------------------------------------------------------------------------

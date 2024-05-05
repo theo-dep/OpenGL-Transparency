@@ -21,13 +21,8 @@
 #include "Timer.h"
 #include "OSD.h"
 
-#ifdef __APPLE__
-#include <OpenGL/GL.h>
-#include <GLUT/glut.h>
-#else
 #include <GL/glew.h>
 #include <GL/freeglut.h>
-#endif
 
 #include <glm/glm.hpp>
 
@@ -1133,7 +1128,6 @@ int main(int argc, char *argv[])
     glutInitContextVersion(2, 0);
     glutInitContextProfile(GLUT_CORE_PROFILE);
 
-#ifndef __APPLE__
     if (glewInit() != GLEW_OK)
     {
         printf("glewInit failed. Exiting...\n");
@@ -1156,7 +1150,6 @@ int main(int argc, char *argv[])
         printf("Exiting...\n");
         exit(1);
     }
-#endif
 
     printf("GL version %s\n", glGetString(GL_VERSION));
     printf("GL vendor %s\n", glGetString(GL_VENDOR));

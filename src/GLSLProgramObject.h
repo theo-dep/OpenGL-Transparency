@@ -10,11 +10,7 @@
 #ifndef GLSL_PROGRAM_OBJECT_H
 #define GLSL_PROGRAM_OBJECT_H
 
-#ifdef __APPLE__
-#include <OpenGL/GL.h>
-#else
 #include <GL/glew.h>
-#endif
 
 #include <string>
 #include <iostream>

@@ -14,14 +14,6 @@
 #include <string>
 #include <time.h>
 
-#ifdef __APPLE__
-#include <OpenGL/GL.h>
-#include <GLUT/glut.h>
-#else
-#include <GL/glew.h>
-#include <GL/glut.h>
-#endif
-
 enum {
 	DUAL_PEELING_MODE,
 	F2B_PEELING_MODE,
