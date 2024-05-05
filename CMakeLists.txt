@@ -9,6 +9,7 @@ find_package(GLEW REQUIRED)
 find_package(FreeGLUT CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
+find_package(Freetype CONFIG REQUIRED)
 
 include_directories(common/include)
 

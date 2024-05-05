@@ -62,13 +62,12 @@ GLuint g_vboId;
 GLuint g_eboId;
 unsigned int g_modelIndexCount;
 GLuint g_vaoId;
-GLuint g_quadVaoId;
-GLuint g_quadVboId;
 
 bool g_useOQ = true;
 GLuint g_queryId;
 
 #define MODEL_FILENAME "media/models/dragon.obj"
+#define FONT_PATH "media/fonts"
 #define SHADER_PATH "src/shaders/"
 
 static nv::SDKPath sdkPath;
@@ -136,19 +135,6 @@ GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
                            GL_COLOR_ATTACHMENT5,
                            GL_COLOR_ATTACHMENT6
 };
-
-#if 1
-#define CHECK_GL_ERRORS  \
-{ \
-    GLenum err = glGetError(); \
-    if (err) \
-        printf( "Error %s at line %d\n", gluErrorString(err), __LINE__); \
-}
-#else
-#define CHECK_GL_ERRORS {}
-#endif
-
-void keyboardFunc(unsigned char key, int x, int y);
 
 //--------------------------------------------------------------------------
 void InitDualPeelingRenderTargets()
@@ -307,38 +293,6 @@ void DeleteAccumulationRenderTargets()
 {
     glDeleteFramebuffers(1, &g_accumulationFboId);
     glDeleteTextures(2, g_accumulationTexId);
-
-    CHECK_GL_ERRORS;
-}
-
-//--------------------------------------------------------------------------
-void MakeFullScreenQuad()
-{
-    glGenVertexArrays(1, &g_quadVaoId);
-    glGenBuffers(1, &g_quadVboId);
-
-    glBindVertexArray(g_quadVaoId);
-    glBindBuffer(GL_ARRAY_BUFFER, g_quadVboId);
-
-    constexpr std::array quadBufferData{
-        -1.f, -1.f, 1.f, -1.f, 1.f, 1.f, -1.f, 1.f
-    };
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadBufferData), quadBufferData.data(), GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (GLubyte*)0);
-
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (GLubyte*)sizeof(quadBufferData));
-
-    CHECK_GL_ERRORS;
-}
-
-//--------------------------------------------------------------------------
-void DrawFullScreenQuad()
-{
-    glBindVertexArray(g_quadVaoId);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
     CHECK_GL_ERRORS;
 }
@@ -507,6 +461,8 @@ void BuildShaders()
     g_shaderWeightedSumFinal.attachFragmentShader(SHADER_PATH "wsum_final_fragment.glsl");
     g_shaderWeightedSumFinal.link();
 
+    LoadShaderText(SHADER_PATH);
+
     CHECK_GL_ERRORS;
 }
 
@@ -529,6 +485,8 @@ void DestroyShaders()
     g_shaderWeightedSumInit.destroy();
     g_shaderWeightedSumFinal.destroy();
 
+    DestroyShaderText();
+
     CHECK_GL_ERRORS;
 }
 
@@ -550,12 +508,28 @@ void InitGL()
 
     BuildShaders();
     LoadModel(MODEL_FILENAME);
-    MakeFullScreenQuad();
+    InitFullScreenQuad();
+
+    InitText(FONT_PATH);
 
     glEnable(GL_MULTISAMPLE);
     glDisable(GL_CULL_FACE);
 
     glGenQueries(1, &g_queryId);
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
+void DeleteGL()
+{
+    DeleteDualPeelingRenderTargets();
+    DeleteFrontPeelingRenderTargets();
+    DeleteAccumulationRenderTargets();
+
+    DeleteFullScreenQuad();
+
+    DeleteText();
 
     CHECK_GL_ERRORS;
 }
@@ -924,7 +898,7 @@ void display()
     }
 
     if (g_showOsd) {
-        //DrawOsd(g_mode, g_opacity, g_numGeoPasses, s_fps);
+        DrawOsd(g_mode, g_opacity, g_numGeoPasses, s_fps);
     }
 
     glutSwapBuffers();
@@ -1167,5 +1141,8 @@ int main(int argc, char *argv[])
     glutKeyboardFunc(keyboardFunc);
 
     glutMainLoop();
+
+    DeleteGL();
+
     return 0;
 }

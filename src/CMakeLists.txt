@@ -11,4 +11,5 @@ target_link_libraries(${TARGET} PRIVATE
     GLEW::GLEW
     glm::glm
     assimp::assimp
+    Freetype::Freetype
 )
