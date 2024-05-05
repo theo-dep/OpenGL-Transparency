@@ -2,6 +2,7 @@
   "dependencies": [
     "freeglut",
     "glew",
-    "glm"
+    "glm",
+    "assimp"
   ]
 }
