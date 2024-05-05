@@ -1,6 +1,7 @@
 {
   "dependencies": [
+    "freeglut",
     "glew",
-    "freeglut"
+    "glm"
   ]
 }

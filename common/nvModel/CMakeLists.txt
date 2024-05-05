@@ -4,5 +4,4 @@ add_library(nvModel STATIC
     nvModelQuery.cpp
     nvSDKPath.h
     nvShaderUtils.h
-    nvUtils.h nvUtils.cpp
 )

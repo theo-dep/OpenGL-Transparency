@@ -22,9 +22,10 @@
 #include <string.h>
 #include <ctype.h>
 
+#include <glm/glm.hpp>
+
 #include "nvModel.h"
 
-#include "nvMath.h"
 
 int strcicomp(const char *str1, const char *str2) {
   if (NULL == str1 && NULL == str2) return 0;
@@ -39,8 +40,8 @@ int strcicomp(const char *str1, const char *str2) {
 using std::vector;
 using std::set;
 using std::map;
-using std::min;
-using std::max;
+using glm::min;
+using glm::max;
 
 namespace nv {
 
@@ -67,7 +68,7 @@ struct IdxSet {
             if (nIndex < rhs.nIndex)
                 return true;
             else if (nIndex == rhs.nIndex) {
-            
+
                 if ( tIndex < rhs.tIndex)
                     return true;
                 else if ( tIndex == rhs.tIndex) {
@@ -84,7 +85,7 @@ struct IdxSet {
 };
 
 //
-//  Edge connectivity structure 
+//  Edge connectivity structure
 ////////////////////////////////////////////////////////////
 struct Edge {
     GLuint pIndex[2]; //position indices
@@ -94,8 +95,8 @@ struct Edge {
     }
 
     Edge( GLuint v0, GLuint v1) {
-        pIndex[0] = std::min( v0, v1);
-        pIndex[1] = std::max( v0, v1);
+        pIndex[0] = glm::min( v0, v1);
+        pIndex[1] = glm::max( v0, v1);
     }
 
 private:
@@ -186,7 +187,7 @@ void Model::compileModel( Model::PrimType prim) {
 
     //find whether a position is unique
     set<GLuint> ptSet;
-    
+
     {
         vector<GLuint>::iterator pit = _pIndex.begin();
         vector<GLuint>::iterator nit = _nIndex.begin();
@@ -329,7 +330,6 @@ void Model::compileModel( Model::PrimType prim) {
                         //no adjacent triangle found, duplicate the vertex
                         adjVertex = _indices[2][ii + jj];
                         _openEdges++;
-                        
                     }
                     else {
                         GLuint triOffset = it->second * 3; //compute the starting index of the triangle
@@ -387,7 +387,7 @@ void Model::compileModel( Model::PrimType prim) {
         _cOffset = -1;
     }
 
-    
+
 }
 
 //
@@ -397,7 +397,7 @@ void Model::compileModel( Model::PrimType prim) {
 void Model::computeTangents() {
 
     //make sure tangents don't already exist
-    if ( hasTangents()) 
+    if ( hasTangents())
         return;
 
     //make sure that the model has texcoords
@@ -413,35 +413,35 @@ void Model::computeTangents() {
 
     //process each face, compute the tangent and try to add it
     for (int ii = 0; ii < (int)_pIndex.size(); ii += 3) {
-        vec3f p0(&_positions[_pIndex[ii]*_posSize]);
-        vec3f p1(&_positions[_pIndex[ii+1]*_posSize]);
-        vec3f p2(&_positions[_pIndex[ii+2]*_posSize]);
-        vec2f st0(&_texCoords[_tIndex[ii]*_tcSize]);
-        vec2f st1(&_texCoords[_tIndex[ii+1]*_tcSize]);
-        vec2f st2(&_texCoords[_tIndex[ii+2]*_tcSize]);
+        glm::vec3 p0(_positions[_pIndex[ii]*_posSize], _positions[(_pIndex[ii] + 1)*_posSize], _positions[(_pIndex[ii] + 2)*_posSize]);
+        glm::vec3 p1(_positions[_pIndex[ii+1]*_posSize], _positions[(_pIndex[ii+1] + 1)*_posSize], _positions[(_pIndex[ii+1] + 2)*_posSize]);
+        glm::vec3 p2(_positions[_pIndex[ii+2]*_posSize], _positions[(_pIndex[ii+2] + 1)*_posSize], _positions[(_pIndex[ii+2] + 2)*_posSize]);
+        glm::vec2 st0(_texCoords[_tIndex[ii]*_tcSize], _texCoords[(_tIndex[ii] + 1)*_tcSize]);
+        glm::vec2 st1(_texCoords[_tIndex[ii+1]*_tcSize], _texCoords[(_tIndex[ii+1] + 1)*_tcSize]);
+        glm::vec2 st2(_texCoords[_tIndex[ii+2]*_tcSize], _texCoords[(_tIndex[ii+2] + 1)*_tcSize]);
 
         //compute the edge and tc differentials
-        vec3f dp0 = p1 - p0;
-        vec3f dp1 = p2 - p0;
-        vec2f dst0 = st1 - st0;
-        vec2f dst1 = st2 - st0;
+        glm::vec3 dp0 = p1 - p0;
+        glm::vec3 dp1 = p2 - p0;
+        glm::vec2 dst0 = st1 - st0;
+        glm::vec2 dst1 = st2 - st0;
 
         float factor = 1.0f / (dst0[0] * dst1[1] - dst1[0] * dst0[1]);
 
         //compute sTangent
-        vec3f sTan;
+        glm::vec3 sTan;
         sTan[0] = dp0[0] * dst1[1] - dp1[0] * dst0[1];
         sTan[1] = dp0[1] * dst1[1] - dp1[1] * dst0[1];
         sTan[2] = dp0[2] * dst1[1] - dp1[2] * dst0[1];
         sTan *= factor;
 
         //should this really renormalize?
-        sTan =normalize( sTan);
+        sTan = glm::normalize( sTan);
 
         //loop over the vertices, to update the tangents
         for (int jj = 0; jj < 3; jj++) {
             //get the present accumulated tangnet
-            vec3f curTan(&_sTangents[_tIndex[ii + jj]*3]);
+            glm::vec3 curTan(_sTangents[_tIndex[ii + jj]*3], _sTangents[(_tIndex[ii + jj] + 1)*3], _sTangents[(_tIndex[ii + jj] + 2)*3]);
 
             //check to see if it is uninitialized, if so, insert it
             if (curTan[0] == 0.0f && curTan[1] == 0.0f && curTan[2] == 0.0f) {
@@ -452,9 +452,9 @@ void Model::computeTangents() {
             }
             else {
                 //check for agreement
-                curTan = normalize( curTan);
+                curTan = glm::normalize( curTan);
 
-                if ( dot( curTan, sTan) >= cosf( 3.1415926f * 0.333333f)) {
+                if (glm::dot( curTan, sTan) >= glm::cos( 3.1415926f * 0.333333f)) {
                     //tangents are in agreement
                     _sTangents[_tIndex[ii + jj]*3] += sTan[0];
                     _sTangents[_tIndex[ii + jj]*3+1] += sTan[1];
@@ -462,15 +462,15 @@ void Model::computeTangents() {
                     _tanIndex.push_back(_tIndex[ii + jj]);
                 }
                 else {
-                    //tangents disagree, this vertex must be split in tangent space 
+                    //tangents disagree, this vertex must be split in tangent space
                     std::multimap< GLuint, GLuint>::iterator it = collisionMap.find( _tIndex[ii + jj]);
 
                     //loop through all hits on this index, until one agrees
                     while ( it != collisionMap.end() && it->first == _tIndex[ii + jj]) {
-                        curTan = vec3f( &_sTangents[it->second*3]);
+                        curTan = glm::vec3(_sTangents[it->second*3], _sTangents[(it->second + 1)*3], _sTangents[(it->second + 2)*3]);
 
-                        curTan = normalize(curTan);
-                        if ( dot( curTan, sTan) >= cosf( 3.1415926f * 0.333333f))
+                        curTan = glm::normalize(curTan);
+                        if (glm::dot( curTan, sTan) >= glm::cos( 3.1415926f * 0.333333f))
                             break;
 
                         it++;
@@ -500,8 +500,8 @@ void Model::computeTangents() {
 
     //normalize all the tangents
     for (int ii = 0; ii < (int)_sTangents.size(); ii += 3) {
-        vec3f tan(&_sTangents[ii]);
-        tan = normalize(tan);
+        glm::vec3 tan(_sTangents[ii], _sTangents[ii + 1], _sTangents[ii + 2]);
+        tan = glm::normalize(tan);
         _sTangents[ii] = tan[0];
         _sTangents[ii+1] = tan[1];
         _sTangents[ii+2] = tan[2];
@@ -525,35 +525,35 @@ void Model::computeNormals() {
 
     //iterate over the faces, computing the face normal and summing it them
     for ( int ii = 0; ii < (int)_pIndex.size(); ii += 3) {
-        vec3f p0(&_positions[_pIndex[ii]*_posSize]);
-        vec3f p1(&_positions[_pIndex[ii+1]*_posSize]);
-        vec3f p2(&_positions[_pIndex[ii+2]*_posSize]);
+        glm::vec3 p0(_positions[_pIndex[ii]*_posSize], _positions[(_pIndex[ii] + 1)*_posSize], _positions[(_pIndex[ii] + 2)*_posSize]);
+        glm::vec3 p1(_positions[_pIndex[ii+1]*_posSize], _positions[(_pIndex[ii+1] + 1)*_posSize], _positions[(_pIndex[ii+1] + 2)*_posSize]);
+        glm::vec3 p2(_positions[_pIndex[ii+2]*_posSize], _positions[(_pIndex[ii+2] + 1)*_posSize], _positions[(_pIndex[ii+2] + 2)*_posSize]);
 
         //compute the edge vectors
-        vec3f dp0 = p1 - p0;
-        vec3f dp1 = p2 - p0;
+        glm::vec3 dp0 = p1 - p0;
+        glm::vec3 dp1 = p2 - p0;
 
-        vec3f fNormal = cross( dp0, dp1); // compute the face normal
-        vec3f nNormal = normalize(fNormal);  // compute a normalized normal
+        glm::vec3 fNormal = glm::cross( dp0, dp1); // compute the face normal
+        glm::vec3 nNormal = glm::normalize(fNormal);  // compute a normalized normal
 
         //iterate over the vertices, adding the face normal influence to each
         for ( int jj = 0; jj < 3; jj++) {
-            // get the current normal from the default location (index shared with position) 
-            vec3f cNormal( &_normals[_pIndex[ii + jj]*3]);
+            // get the current normal from the default location (index shared with position)
+            glm::vec3 cNormal(_normals[_pIndex[ii + jj]*3], _normals[(_pIndex[ii + jj] + 1)*3], _normals[(_pIndex[ii + jj] + 2)*3]);
 
-            // check to see if this normal has not yet been touched 
+            // check to see if this normal has not yet been touched
             if ( cNormal[0] == 0.0f && cNormal[1] == 0.0f && cNormal[2] == 0.0f) {
                 // first instance of this index, just store it as is
                 _normals[_pIndex[ii + jj]*3] = fNormal[0];
                 _normals[_pIndex[ii + jj]*3 + 1] = fNormal[1];
                 _normals[_pIndex[ii + jj]*3 + 2] = fNormal[2];
-                _nIndex.push_back( _pIndex[ii + jj]); 
+                _nIndex.push_back( _pIndex[ii + jj]);
             }
             else {
                 // check for agreement
-                cNormal = normalize( cNormal);
+                cNormal = glm::normalize( cNormal);
 
-                if ( dot( cNormal, nNormal) >= cosf( 3.1415926f * 0.333333f)) {
+                if (glm::dot( cNormal, nNormal) >= glm::cos( 3.1415926f * 0.333333f)) {
                     //normal agrees, so add it
                     _normals[_pIndex[ii + jj]*3] += fNormal[0];
                     _normals[_pIndex[ii + jj]*3 + 1] += fNormal[1];
@@ -561,14 +561,14 @@ void Model::computeNormals() {
                     _nIndex.push_back( _pIndex[ii + jj]);
                 }
                 else {
-                    //normals disagree, this vertex must be along a facet edge 
+                    //normals disagree, this vertex must be along a facet edge
                     std::multimap< GLuint, GLuint>::iterator it = collisionMap.find( _pIndex[ii + jj]);
 
                     //loop through all hits on this index, until one agrees
                     while ( it != collisionMap.end() && it->first == _pIndex[ii + jj]) {
-                        cNormal = normalize(vec3f( &_normals[it->second*3]));
+                        cNormal = glm::normalize(glm::vec3(_normals[it->second*3], _normals[(it->second + 1)*3], _normals[(it->second + 2)*3]));
 
-                        if ( dot( cNormal, nNormal) >= cosf( 3.1415926f * 0.333333f))
+                        if (glm::dot( cNormal, nNormal) >= glm::cos( 3.1415926f * 0.333333f))
                             break;
 
                         it++;
@@ -598,8 +598,8 @@ void Model::computeNormals() {
 
     //now normalize all the normals
     for ( int ii = 0; ii < (int)_normals.size(); ii += 3) {
-        vec3f norm(&_normals[ii]);
-        norm =normalize(norm);
+        glm::vec3 norm(_normals[ii], _normals[ii + 1], _normals[ii + 2]);
+        norm = glm::normalize(norm);
         _normals[ii] = norm[0];
         _normals[ii+1] = norm[1];
         _normals[ii+2] = norm[2];
@@ -610,17 +610,17 @@ void Model::computeNormals() {
 //
 //
 //////////////////////////////////////////////////////////////////////
-void Model::computeBoundingBox( vec3f &minVal, vec3f &maxVal) {
+void Model::computeBoundingBox( glm::vec3 &minVal, glm::vec3 &maxVal) {
 
     if ( _positions.empty())
         return;
 
-    minVal = vec3f( 1e10f, 1e10f, 1e10f);
+    minVal = glm::vec3( 1e10f, 1e10f, 1e10f);
     maxVal = -minVal;
 
     for ( vector<float>::iterator pit = _positions.begin() + _posSize; pit < _positions.end(); pit += _posSize) {
-        minVal = min( minVal, vec3f( &pit[0]));
-        maxVal = max( maxVal, vec3f( &pit[0]));
+        minVal = glm::min( minVal, glm::vec3(pit[0], pit[1], pit[2]));
+        maxVal = glm::max( maxVal, glm::vec3(pit[0], pit[1], pit[2]));
     }
 }
 
@@ -632,17 +632,17 @@ void Model::rescale( float radius) {
     if ( _positions.empty())
         return;
 
-    vec3f minVal, maxVal;
+    glm::vec3 minVal, maxVal;
     computeBoundingBox(minVal, maxVal);
 
-    vec3f r = 0.5f*(maxVal - minVal);
-    vec3f center = minVal + r;
+    glm::vec3 r = 0.5f*(maxVal - minVal);
+    glm::vec3 center = minVal + r;
 //    float oldRadius = length(r);
-    float oldRadius = std::max(r.x, std::max(r.y, r.z));
+    float oldRadius = glm::max(r.x, glm::max(r.y, r.z));
     float scale = radius / oldRadius;
 
     for ( vector<float>::iterator pit = _positions.begin(); pit < _positions.end(); pit += _posSize) {
-        vec3f np = scale*(vec3f(&pit[0]) - center);
+        glm::vec3 np = scale*(glm::vec3(pit[0], pit[1], pit[2]) - center);
         pit[0] = np.x;
         pit[1] = np.y;
         pit[2] = np.z;

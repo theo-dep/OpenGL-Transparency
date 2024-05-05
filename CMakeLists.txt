@@ -7,9 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(GLEW REQUIRED)
 find_package(FreeGLUT CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
 
 include_directories(common/nvModel)
-include_directories(common/include)
 add_subdirectory(common/nvModel)
 
 if(WIN32)

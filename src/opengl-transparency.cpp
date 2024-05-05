@@ -18,7 +18,6 @@
 #include "nvModel.h"
 #include <nvShaderUtils.h>
 #include <nvSDKPath.h>
-#include <nvMath.h>
 #include "GLSLProgramObject.h"
 #include "Timer.h"
 #include "OSD.h"
@@ -30,6 +29,8 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #endif
+
+#include <glm/glm.hpp>
 
 #include <iostream>
 #include <sstream>
@@ -90,9 +91,9 @@ int g_scaling = 0;
 int g_oldX, g_oldY;
 int g_newX, g_newY;
 float g_bbScale = 1.0;
-nv::vec3f g_bbTrans(0.0, 0.0, 0.0);
-nv::vec2f g_rot(0.0, 45.0);
-nv::vec3f g_pos(0.0, 0.0, 2.0);
+glm::vec3 g_bbTrans(0.0, 0.0, 0.0);
+glm::vec2 g_rot(0.0, 45.0);
+glm::vec3 g_pos(0.0, 0.0, 2.0);
 
 float g_white[3] = {1.0,1.0,1.0};
 float g_black[3] = {0.0};
@@ -377,12 +378,12 @@ void LoadModel(const char *model_filename)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, totalIndexSize, g_model->getCompiledIndices(), GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    nv::vec3f modelMin, modelMax;
+    glm::vec3 modelMin, modelMax;
     g_model->computeBoundingBox(modelMin, modelMax);
 
-    nv::vec3f diag = modelMax - modelMin;
-    g_bbScale = 1.0f / nv::length(diag) * 1.5f;
-    g_bbTrans = -g_bbScale * (modelMin + 0.5 * (modelMax - modelMin));
+    glm::vec3 diag = modelMax - modelMin;
+    g_bbScale = 1.0f / glm::length(diag) * 1.5f;
+    g_bbTrans = -g_bbScale * (modelMin + 0.5f * (modelMax - modelMin));
 }
 
 //--------------------------------------------------------------------------

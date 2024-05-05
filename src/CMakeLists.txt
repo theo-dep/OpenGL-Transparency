@@ -9,4 +9,5 @@ add_executable(${TARGET}
 target_link_libraries(${TARGET} PRIVATE nvModel
     $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>
     GLEW::GLEW
+    glm::glm
 )

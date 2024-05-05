@@ -27,7 +27,7 @@
 #include <GL/glew.h>
 #endif
 
-#include "nvMath.h"
+#include <glm/vec3.hpp>
 
 namespace nv {
 
@@ -89,7 +89,7 @@ namespace nv {
         //  aligned bounding box containing the model.
         //
         //////////////////////////////////////////////////////////////
-        NVSDKENTRY void computeBoundingBox( vec3f &minVal, vec3f &maxVal);
+        NVSDKENTRY void computeBoundingBox( glm::vec3 &minVal, glm::vec3 &maxVal);
 
         //
         //  rescale
