@@ -7,6 +7,10 @@
 // Copyright (c) NVIDIA Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#version 330 core
+
+in vec3 TexCoord;
+
 uniform float Alpha;
 
 #define COLOR_FREQ 30.0
@@ -15,9 +19,9 @@ uniform float Alpha;
 vec4 ShadeFragment()
 {
 #if 1
-	float xWorldPos = gl_TexCoord[0].x;
-	float yWorldPos = gl_TexCoord[0].y;
-	float diffuse = gl_TexCoord[0].z;
+	float xWorldPos = TexCoord.x;
+	float yWorldPos = TexCoord.y;
+	float diffuse = TexCoord.z;
 
 	vec4 color;
 	float i = floor(xWorldPos * COLOR_FREQ);

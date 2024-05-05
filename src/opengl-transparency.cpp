@@ -25,6 +25,8 @@
 #include <GL/freeglut.h>
 
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -36,11 +38,12 @@
 #include <string>
 #include <algorithm>
 #include <array>
+#include <memory>
 #include <time.h>
 
-#define FOVY 30.0
-#define ZNEAR 0.0001
-#define ZFAR 10.0
+#define FOVY 30.0f
+#define ZNEAR 0.0001f
+#define ZFAR 10.0f
 #define FPS_TIME_WINDOW 1
 #define MAX_DEPTH 1.0
 
@@ -58,7 +61,9 @@ const aiMesh *g_model;
 GLuint g_vboId;
 GLuint g_eboId;
 unsigned int g_modelIndexCount;
-GLuint g_quadDisplayList;
+GLuint g_vaoId;
+GLuint g_quadVaoId;
+GLuint g_quadVboId;
 
 bool g_useOQ = true;
 GLuint g_queryId;
@@ -97,12 +102,15 @@ int g_oldX, g_oldY;
 int g_newX, g_newY;
 float g_bbScale = 1.0;
 glm::vec3 g_bbTrans(0.0, 0.0, 0.0);
-glm::vec2 g_rot(0.0, 45.0);
-glm::vec3 g_pos(0.0, 0.0, 2.0);
+glm::vec2 g_rot(15.0, 45.0);
+glm::vec3 g_pos(0.0, 0.0, 1.0);
 
-float g_white[3] = {1.0,1.0,1.0};
-float g_black[3] = {0.0};
-float *g_backgroundColor = g_white;
+glm::mat4 g_projetionMatrix;
+glm::mat4 g_modelViewMatrix;
+
+glm::vec3 g_white(1);
+glm::vec3 g_black(0);
+glm::vec3 g_backgroundColor = g_white;
 
 GLuint g_dualBackBlenderFboId;
 GLuint g_dualPeelingSingleFboId;
@@ -120,21 +128,21 @@ GLuint g_frontColorBlenderFboId;
 GLuint g_accumulationTexId[2];
 GLuint g_accumulationFboId;
 
-GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0_EXT,
-                           GL_COLOR_ATTACHMENT1_EXT,
-                           GL_COLOR_ATTACHMENT2_EXT,
-                           GL_COLOR_ATTACHMENT3_EXT,
-                           GL_COLOR_ATTACHMENT4_EXT,
-                           GL_COLOR_ATTACHMENT5_EXT,
-                           GL_COLOR_ATTACHMENT6_EXT
+GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
+                           GL_COLOR_ATTACHMENT1,
+                           GL_COLOR_ATTACHMENT2,
+                           GL_COLOR_ATTACHMENT3,
+                           GL_COLOR_ATTACHMENT4,
+                           GL_COLOR_ATTACHMENT5,
+                           GL_COLOR_ATTACHMENT6
 };
 
-#if 0
+#if 1
 #define CHECK_GL_ERRORS  \
 { \
     GLenum err = glGetError(); \
     if (err) \
-        printf( "Error %x at line %d\n", err, __LINE__); \
+        printf( "Error %s at line %d\n", gluErrorString(err), __LINE__); \
 }
 #else
 #define CHECK_GL_ERRORS {}
@@ -148,68 +156,56 @@ void InitDualPeelingRenderTargets()
     glGenTextures(2, g_dualDepthTexId);
     glGenTextures(2, g_dualFrontBlenderTexId);
     glGenTextures(2, g_dualBackTempTexId);
-    glGenFramebuffersEXT(1, &g_dualPeelingSingleFboId);
+    glGenFramebuffers(1, &g_dualPeelingSingleFboId);
     for (int i = 0; i < 2; i++)
     {
-        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_dualDepthTexId[i]);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RG32F,
-                     g_imageWidth, g_imageHeight, 0, GL_RGB, GL_FLOAT, 0);
+        glBindTexture(GL_TEXTURE_RECTANGLE, g_dualDepthTexId[i]);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RG32F, g_imageWidth, g_imageHeight, 0, GL_RG, GL_FLOAT, 0);
 
-        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_dualFrontBlenderTexId[i]);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
-                     g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
+        glBindTexture(GL_TEXTURE_RECTANGLE, g_dualFrontBlenderTexId[i]);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA32F, g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
 
-        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_dualBackTempTexId[i]);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
-                     g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
+        glBindTexture(GL_TEXTURE_RECTANGLE, g_dualBackTempTexId[i]);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA32F, g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
     }
 
     glGenTextures(1, &g_dualBackBlenderTexId);
-    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_dualBackBlenderTexId);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGB,
-                 g_imageWidth, g_imageHeight, 0, GL_RGB, GL_FLOAT, 0);
+    glBindTexture(GL_TEXTURE_RECTANGLE, g_dualBackBlenderTexId);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB32F, g_imageWidth, g_imageHeight, 0, GL_RGB, GL_FLOAT, 0);
 
-    glGenFramebuffersEXT(1, &g_dualBackBlenderFboId);
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_dualBackBlenderFboId);
-    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
-                              GL_TEXTURE_RECTANGLE_ARB, g_dualBackBlenderTexId, 0);
+    glGenFramebuffers(1, &g_dualBackBlenderFboId);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_dualBackBlenderFboId);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, g_dualBackBlenderTexId, 0);
 
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_dualPeelingSingleFboId);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_dualPeelingSingleFboId);
 
     int j = 0;
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
-                                  GL_TEXTURE_RECTANGLE_ARB, g_dualDepthTexId[j], 0);
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT1_EXT,
-                                  GL_TEXTURE_RECTANGLE_ARB, g_dualFrontBlenderTexId[j], 0);
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT2_EXT,
-                                  GL_TEXTURE_RECTANGLE_ARB, g_dualBackTempTexId[j], 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, g_dualDepthTexId[j], 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_RECTANGLE, g_dualFrontBlenderTexId[j], 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_RECTANGLE, g_dualBackTempTexId[j], 0);
 
     j = 1;
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT3_EXT,
-                                  GL_TEXTURE_RECTANGLE_ARB, g_dualDepthTexId[j], 0);
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT4_EXT,
-                                  GL_TEXTURE_RECTANGLE_ARB, g_dualFrontBlenderTexId[j], 0);
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT5_EXT,
-                                  GL_TEXTURE_RECTANGLE_ARB, g_dualBackTempTexId[j], 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_RECTANGLE, g_dualDepthTexId[j], 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_RECTANGLE, g_dualFrontBlenderTexId[j], 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT5, GL_TEXTURE_RECTANGLE, g_dualBackTempTexId[j], 0);
 
-    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT6_EXT,
-                              GL_TEXTURE_RECTANGLE_ARB, g_dualBackBlenderTexId, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT6, GL_TEXTURE_RECTANGLE, g_dualBackBlenderTexId, 0);
 
     CHECK_GL_ERRORS;
 }
@@ -217,8 +213,8 @@ void InitDualPeelingRenderTargets()
 //--------------------------------------------------------------------------
 void DeleteDualPeelingRenderTargets()
 {
-    glDeleteFramebuffersEXT(1, &g_dualBackBlenderFboId);
-    glDeleteFramebuffersEXT(1, &g_dualPeelingSingleFboId);
+    glDeleteFramebuffers(1, &g_dualBackBlenderFboId);
+    glDeleteFramebuffers(1, &g_dualPeelingSingleFboId);
     glDeleteTextures(2, g_dualDepthTexId);
     glDeleteTextures(2, g_dualFrontBlenderTexId);
     glDeleteTextures(2, g_dualBackTempTexId);
@@ -230,56 +226,50 @@ void InitFrontPeelingRenderTargets()
 {
     glGenTextures(2, g_frontDepthTexId);
     glGenTextures(2, g_frontColorTexId);
-    glGenFramebuffersEXT(2, g_frontFboId);
+    glGenFramebuffers(2, g_frontFboId);
 
     for (int i = 0; i < 2; i++)
     {
-        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_frontDepthTexId[i]);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_DEPTH_COMPONENT,
-                     g_imageWidth, g_imageHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glBindTexture(GL_TEXTURE_RECTANGLE, g_frontDepthTexId[i]);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_DEPTH_COMPONENT32F, g_imageWidth, g_imageHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 
-        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_frontColorTexId[i]);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
-                     g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
+        glBindTexture(GL_TEXTURE_RECTANGLE, g_frontColorTexId[i]);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA32F, g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
 
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_frontFboId[i]);
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
-                                  GL_TEXTURE_RECTANGLE_ARB, g_frontDepthTexId[i], 0);
-        glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
-                                  GL_TEXTURE_RECTANGLE_ARB, g_frontColorTexId[i], 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, g_frontFboId[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_RECTANGLE, g_frontDepthTexId[i], 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, g_frontColorTexId[i], 0);
     }
 
     glGenTextures(1, &g_frontColorBlenderTexId);
-    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_frontColorBlenderTexId);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
-                 g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
+    glBindTexture(GL_TEXTURE_RECTANGLE, g_frontColorBlenderTexId);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA32F, g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
 
-    glGenFramebuffersEXT(1, &g_frontColorBlenderFboId);
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_frontColorBlenderFboId);
-    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
-                              GL_TEXTURE_RECTANGLE_ARB, g_frontDepthTexId[0], 0);
-    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
-                              GL_TEXTURE_RECTANGLE_ARB, g_frontColorBlenderTexId, 0);
+    glGenFramebuffers(1, &g_frontColorBlenderFboId);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_frontColorBlenderFboId);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_RECTANGLE, g_frontDepthTexId[0], 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, g_frontColorBlenderTexId, 0);
+
     CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
 void DeleteFrontPeelingRenderTargets()
 {
-    glDeleteFramebuffersEXT(2, g_frontFboId);
-    glDeleteFramebuffersEXT(1, &g_frontColorBlenderFboId);
+    glDeleteFramebuffers(2, g_frontFboId);
+    glDeleteFramebuffers(1, &g_frontColorBlenderFboId);
     glDeleteTextures(2, g_frontDepthTexId);
     glDeleteTextures(2, g_frontColorTexId);
     glDeleteTextures(1, &g_frontColorBlenderTexId);
@@ -290,28 +280,24 @@ void InitAccumulationRenderTargets()
 {
     glGenTextures(2, g_accumulationTexId);
 
-    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_accumulationTexId[0]);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA16F_ARB,
-                 g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+    glBindTexture(GL_TEXTURE_RECTANGLE, g_accumulationTexId[0]);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA16F, g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, NULL);
 
-    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_accumulationTexId[1]);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_R32F,
-                 g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+    glBindTexture(GL_TEXTURE_RECTANGLE, g_accumulationTexId[1]);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_R32F, g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, NULL);
 
-    glGenFramebuffersEXT(1, &g_accumulationFboId);
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_accumulationFboId);
-    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT,
-                              GL_TEXTURE_RECTANGLE_ARB, g_accumulationTexId[0], 0);
-    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT1_EXT,
-                              GL_TEXTURE_RECTANGLE_ARB, g_accumulationTexId[1], 0);
+    glGenFramebuffers(1, &g_accumulationFboId);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_accumulationFboId);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE, g_accumulationTexId[0], 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_RECTANGLE, g_accumulationTexId[1], 0);
 
     CHECK_GL_ERRORS;
 }
@@ -319,31 +305,42 @@ void InitAccumulationRenderTargets()
 //--------------------------------------------------------------------------
 void DeleteAccumulationRenderTargets()
 {
-    glDeleteFramebuffersEXT(1, &g_accumulationFboId);
+    glDeleteFramebuffers(1, &g_accumulationFboId);
     glDeleteTextures(2, g_accumulationTexId);
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
 void MakeFullScreenQuad()
 {
-    g_quadDisplayList = glGenLists(1);
-    glNewList(g_quadDisplayList, GL_COMPILE);
+    glGenVertexArrays(1, &g_quadVaoId);
+    glGenBuffers(1, &g_quadVboId);
 
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-    gluOrtho2D(0.0, 1.0, 0.0, 1.0);
-    glBegin(GL_QUADS);
-    {
-        glVertex2f(0.0, 0.0);
-        glVertex2f(1.0, 0.0);
-        glVertex2f(1.0, 1.0);
-        glVertex2f(0.0, 1.0);
-    }
-    glEnd();
-    glPopMatrix();
+    glBindVertexArray(g_quadVaoId);
+    glBindBuffer(GL_ARRAY_BUFFER, g_quadVboId);
 
-    glEndList();
+    constexpr std::array quadBufferData{
+        -1.f, -1.f, 1.f, -1.f, 1.f, 1.f, -1.f, 1.f
+    };
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadBufferData), quadBufferData.data(), GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (GLubyte*)0);
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (GLubyte*)sizeof(quadBufferData));
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
+void DrawFullScreenQuad()
+{
+    glBindVertexArray(g_quadVaoId);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
@@ -407,16 +404,23 @@ void LoadModel(const char *model_filename)
     }
 
     glGenBuffers(1, &g_vboId);
+    glGenBuffers(1, &g_eboId);
+    glGenVertexArrays(1, &g_vaoId);
+
+    glBindVertexArray(g_vaoId);
+
     glBindBuffer(GL_ARRAY_BUFFER, g_vboId);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     g_modelIndexCount = indices.size();
 
-    glGenBuffers(1, &g_eboId);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_eboId);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLubyte*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLubyte*)offsetof(Vertex, Normal));
 
     const aiAABB &aabb = g_model->mAABB;
     const glm::vec3 modelMin(aabb.mMin.x, aabb.mMin.y, aabb.mMin.z);
@@ -425,26 +429,19 @@ void LoadModel(const char *model_filename)
     glm::vec3 diag = modelMax - modelMin;
     g_bbScale = 1.0f / glm::length(diag) * 1.5f;
     g_bbTrans = -g_bbScale * (modelMin + 0.5f * (modelMax - modelMin));
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
 void DrawModel()
 {
-    glBindBuffer(GL_ARRAY_BUFFER, g_vboId);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_eboId);
-    glVertexPointer(3, GL_FLOAT, sizeof(Vertex), (GLubyte*)0);
-    glNormalPointer(GL_FLOAT, sizeof(Vertex), (GLubyte*)offsetof(Vertex, Normal));
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_NORMAL_ARRAY);
-
+    glBindVertexArray(g_vaoId);
     glDrawElements(GL_TRIANGLES, g_modelIndexCount, GL_UNSIGNED_INT, 0);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glDisableClientState(GL_NORMAL_ARRAY);
-
     g_numGeoPasses++;
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
@@ -462,11 +459,11 @@ void BuildShaders()
     g_shaderDualPeel.attachFragmentShader(SHADER_PATH "dual_peeling_peel_fragment.glsl");
     g_shaderDualPeel.link();
 
-    g_shaderDualBlend.attachVertexShader(SHADER_PATH "dual_peeling_blend_vertex.glsl");
+    g_shaderDualBlend.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
     g_shaderDualBlend.attachFragmentShader(SHADER_PATH "dual_peeling_blend_fragment.glsl");
     g_shaderDualBlend.link();
 
-    g_shaderDualFinal.attachVertexShader(SHADER_PATH "dual_peeling_final_vertex.glsl");
+    g_shaderDualFinal.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
     g_shaderDualFinal.attachFragmentShader(SHADER_PATH "dual_peeling_final_fragment.glsl");
     g_shaderDualFinal.link();
 
@@ -482,11 +479,11 @@ void BuildShaders()
     g_shaderFrontPeel.attachFragmentShader(SHADER_PATH "front_peeling_peel_fragment.glsl");
     g_shaderFrontPeel.link();
 
-    g_shaderFrontBlend.attachVertexShader(SHADER_PATH "front_peeling_blend_vertex.glsl");
+    g_shaderFrontBlend.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
     g_shaderFrontBlend.attachFragmentShader(SHADER_PATH "front_peeling_blend_fragment.glsl");
     g_shaderFrontBlend.link();
 
-    g_shaderFrontFinal.attachVertexShader(SHADER_PATH "front_peeling_final_vertex.glsl");
+    g_shaderFrontFinal.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
     g_shaderFrontFinal.attachFragmentShader(SHADER_PATH "front_peeling_final_fragment.glsl");
     g_shaderFrontFinal.link();
 
@@ -496,7 +493,7 @@ void BuildShaders()
     g_shaderAverageInit.attachFragmentShader(SHADER_PATH "wavg_init_fragment.glsl");
     g_shaderAverageInit.link();
 
-    g_shaderAverageFinal.attachVertexShader(SHADER_PATH "wavg_final_vertex.glsl");
+    g_shaderAverageFinal.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
     g_shaderAverageFinal.attachFragmentShader(SHADER_PATH "wavg_final_fragment.glsl");
     g_shaderAverageFinal.link();
 
@@ -506,9 +503,11 @@ void BuildShaders()
     g_shaderWeightedSumInit.attachFragmentShader(SHADER_PATH "wsum_init_fragment.glsl");
     g_shaderWeightedSumInit.link();
 
-    g_shaderWeightedSumFinal.attachVertexShader(SHADER_PATH "wsum_final_vertex.glsl");
+    g_shaderWeightedSumFinal.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
     g_shaderWeightedSumFinal.attachFragmentShader(SHADER_PATH "wsum_final_fragment.glsl");
     g_shaderWeightedSumFinal.link();
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
@@ -529,6 +528,8 @@ void DestroyShaders()
 
     g_shaderWeightedSumInit.destroy();
     g_shaderWeightedSumFinal.destroy();
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
@@ -545,17 +546,26 @@ void InitGL()
     InitDualPeelingRenderTargets();
     InitFrontPeelingRenderTargets();
     InitAccumulationRenderTargets();
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     BuildShaders();
     LoadModel(MODEL_FILENAME);
     MakeFullScreenQuad();
 
+    glEnable(GL_MULTISAMPLE);
     glDisable(GL_CULL_FACE);
-    glDisable(GL_LIGHTING);
-    glDisable(GL_NORMALIZE);
 
     glGenQueries(1, &g_queryId);
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
+glm::mat3 normalMatrix(const glm::mat4 &mat)
+{
+    const glm::mat3 mat3(mat);
+    const glm::mat3 normalMat = glm::inverseTranspose(mat3);
+    return normalMat;
 }
 
 //--------------------------------------------------------------------------
@@ -568,7 +578,7 @@ void RenderDualPeeling()
     // 1. Initialize Min-Max Depth Buffer
     // ---------------------------------------------------------------------
 
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_dualPeelingSingleFboId);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_dualPeelingSingleFboId);
 
     // Render targets 1 and 2 store the front and back colors
     // Clear to 0.0 and use MAX blending to filter written color
@@ -581,11 +591,11 @@ void RenderDualPeeling()
     glDrawBuffer(g_drawBuffers[0]);
     glClearColor(-MAX_DEPTH, -MAX_DEPTH, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT);
-    glBlendEquationEXT(GL_MAX_EXT);
+    glBlendEquation(GL_MAX);
 
     g_shaderDualInit.bind();
+    g_shaderDualInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
     DrawModel();
-    g_shaderDualInit.unbind();
 
     CHECK_GL_ERRORS;
 
@@ -595,7 +605,7 @@ void RenderDualPeeling()
 
     // Since we cannot blend the back colors in the geometry passes,
     // we use another render target to do the alpha blending
-    //glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_dualBackBlenderFboId);
+    //glBindFramebuffer(GL_FRAMEBUFFER, g_dualBackBlenderFboId);
     glDrawBuffer(g_drawBuffers[6]);
     glClearColor(g_backgroundColor[0], g_backgroundColor[1], g_backgroundColor[2], 0);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -607,7 +617,7 @@ void RenderDualPeeling()
         int prevId = 1 - currId;
         int bufId = currId * 3;
 
-        //glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_dualPeelingFboId[currId]);
+        //glBindFramebuffer(GL_FRAMEBUFFER, g_dualPeelingFboId[currId]);
 
         glDrawBuffers(2, &g_drawBuffers[bufId+1]);
         glClearColor(0, 0, 0, 0);
@@ -621,38 +631,39 @@ void RenderDualPeeling()
         // Render target 1: RGBA MAX blending
         // Render target 2: RGBA MAX blending
         glDrawBuffers(3, &g_drawBuffers[bufId+0]);
-        glBlendEquationEXT(GL_MAX_EXT);
+        glBlendEquation(GL_MAX);
 
         g_shaderDualPeel.bind();
+        g_shaderDualPeel.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+        g_shaderDualPeel.setUniform("ModelViewMatrix", g_modelViewMatrix);
+        g_shaderDualPeel.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
         g_shaderDualPeel.bindTextureRECT("DepthBlenderTex", g_dualDepthTexId[prevId], 0);
         g_shaderDualPeel.bindTextureRECT("FrontBlenderTex", g_dualFrontBlenderTexId[prevId], 1);
-        g_shaderDualPeel.setUniform("Alpha", (float*)&g_opacity, 1);
+        g_shaderDualPeel.setUniform("Alpha", g_opacity);
         DrawModel();
-        g_shaderDualPeel.unbind();
 
         CHECK_GL_ERRORS;
 
         // Full screen pass to alpha-blend the back color
         glDrawBuffer(g_drawBuffers[6]);
 
-        glBlendEquationEXT(GL_FUNC_ADD);
+        glBlendEquation(GL_FUNC_ADD);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         if (g_useOQ) {
-            glBeginQuery(GL_SAMPLES_PASSED_ARB, g_queryId);
+            glBeginQuery(GL_SAMPLES_PASSED, g_queryId);
         }
 
         g_shaderDualBlend.bind();
         g_shaderDualBlend.bindTextureRECT("TempTex", g_dualBackTempTexId[currId], 0);
-        glCallList(g_quadDisplayList);
-        g_shaderDualBlend.unbind();
+        DrawFullScreenQuad();
 
         CHECK_GL_ERRORS;
 
         if (g_useOQ) {
-            glEndQuery(GL_SAMPLES_PASSED_ARB);
+            glEndQuery(GL_SAMPLES_PASSED);
             GLuint sample_count;
-            glGetQueryObjectuiv(g_queryId, GL_QUERY_RESULT_ARB, &sample_count);
+            glGetQueryObjectuiv(g_queryId, GL_QUERY_RESULT, &sample_count);
             if (sample_count == 0) {
                 break;
             }
@@ -665,15 +676,14 @@ void RenderDualPeeling()
     // 3. Final Pass
     // ---------------------------------------------------------------------
 
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDrawBuffer(GL_BACK);
 
     g_shaderDualFinal.bind();
     g_shaderDualFinal.bindTextureRECT("DepthBlenderTex", g_dualDepthTexId[currId], 0);
     g_shaderDualFinal.bindTextureRECT("FrontBlenderTex", g_dualFrontBlenderTexId[currId], 1);
     g_shaderDualFinal.bindTextureRECT("BackBlenderTex", g_dualBackBlenderTexId, 2);
-    glCallList(g_quadDisplayList);
-    g_shaderDualFinal.unbind();
+    DrawFullScreenQuad();
 
     CHECK_GL_ERRORS;
 }
@@ -685,7 +695,7 @@ void RenderFrontToBackPeeling()
     // 1. Initialize Min Depth Buffer
     // ---------------------------------------------------------------------
 
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_frontColorBlenderFboId);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_frontColorBlenderFboId);
     glDrawBuffer(g_drawBuffers[0]);
 
     glClearColor(0, 0, 0, 1);
@@ -694,9 +704,11 @@ void RenderFrontToBackPeeling()
     glEnable(GL_DEPTH_TEST);
 
     g_shaderFrontInit.bind();
-    g_shaderFrontInit.setUniform("Alpha", (float*)&g_opacity, 1);
+    g_shaderFrontInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderFrontInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
+    g_shaderFrontInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
+    g_shaderFrontInit.setUniform("Alpha", g_opacity);
     DrawModel();
-    g_shaderFrontInit.unbind();
 
     CHECK_GL_ERRORS;
 
@@ -709,7 +721,7 @@ void RenderFrontToBackPeeling()
         int currId = layer % 2;
         int prevId = 1 - currId;
 
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_frontFboId[currId]);
+        glBindFramebuffer(GL_FRAMEBUFFER, g_frontFboId[currId]);
         glDrawBuffer(g_drawBuffers[0]);
 
         glClearColor(0, 0, 0, 0);
@@ -719,22 +731,24 @@ void RenderFrontToBackPeeling()
         glEnable(GL_DEPTH_TEST);
 
         if (g_useOQ) {
-            glBeginQuery(GL_SAMPLES_PASSED_ARB, g_queryId);
+            glBeginQuery(GL_SAMPLES_PASSED, g_queryId);
         }
 
         g_shaderFrontPeel.bind();
+        g_shaderFrontPeel.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+        g_shaderFrontPeel.setUniform("ModelViewMatrix", g_modelViewMatrix);
+        g_shaderFrontPeel.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
         g_shaderFrontPeel.bindTextureRECT("DepthTex", g_frontDepthTexId[prevId], 0);
-        g_shaderFrontPeel.setUniform("Alpha", (float*)&g_opacity, 1);
+        g_shaderFrontPeel.setUniform("Alpha", g_opacity);
         DrawModel();
-        g_shaderFrontPeel.unbind();
 
         if (g_useOQ) {
-            glEndQuery(GL_SAMPLES_PASSED_ARB);
+            glEndQuery(GL_SAMPLES_PASSED);
         }
 
         CHECK_GL_ERRORS;
 
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_frontColorBlenderFboId);
+        glBindFramebuffer(GL_FRAMEBUFFER, g_frontColorBlenderFboId);
         glDrawBuffer(g_drawBuffers[0]);
 
         glDisable(GL_DEPTH_TEST);
@@ -746,8 +760,7 @@ void RenderFrontToBackPeeling()
 
         g_shaderFrontBlend.bind();
         g_shaderFrontBlend.bindTextureRECT("TempTex", g_frontColorTexId[currId], 0);
-        glCallList(g_quadDisplayList);
-        g_shaderFrontBlend.unbind();
+        DrawFullScreenQuad();
 
         glDisable(GL_BLEND);
 
@@ -755,7 +768,7 @@ void RenderFrontToBackPeeling()
 
         if (g_useOQ) {
             GLuint sample_count;
-            glGetQueryObjectuiv(g_queryId, GL_QUERY_RESULT_ARB, &sample_count);
+            glGetQueryObjectuiv(g_queryId, GL_QUERY_RESULT, &sample_count);
             if (sample_count == 0) {
                 break;
             }
@@ -766,15 +779,14 @@ void RenderFrontToBackPeeling()
     // 3. Final Pass
     // ---------------------------------------------------------------------
 
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDrawBuffer(GL_BACK);
     glDisable(GL_DEPTH_TEST);
 
     g_shaderFrontFinal.bind();
-    g_shaderFrontFinal.setUniform("BackgroundColor", g_backgroundColor, 3);
+    g_shaderFrontFinal.setUniform("BackgroundColor", g_backgroundColor);
     g_shaderFrontFinal.bindTextureRECT("ColorTex", g_frontColorBlenderTexId, 0);
-    glCallList(g_quadDisplayList);
-    g_shaderFrontFinal.unbind();
+    DrawFullScreenQuad();
 
     CHECK_GL_ERRORS;
 }
@@ -788,20 +800,22 @@ void RenderAverageColors()
     // 1. Accumulate Colors and Depth Complexity
     // ---------------------------------------------------------------------
 
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_accumulationFboId);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_accumulationFboId);
     glDrawBuffers(2, g_drawBuffers);
 
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glBlendEquationEXT(GL_FUNC_ADD);
+    glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_ONE, GL_ONE);
     glEnable(GL_BLEND);
 
     g_shaderAverageInit.bind();
-    g_shaderAverageInit.setUniform("Alpha", (float*)&g_opacity, 1);
+    g_shaderAverageInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderAverageInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
+    g_shaderAverageInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
+    g_shaderAverageInit.setUniform("Alpha", g_opacity);
     DrawModel();
-    g_shaderAverageInit.unbind();
 
     glDisable(GL_BLEND);
 
@@ -811,15 +825,14 @@ void RenderAverageColors()
     // 2. Approximate Blending
     // ---------------------------------------------------------------------
 
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDrawBuffer(GL_BACK);
 
     g_shaderAverageFinal.bind();
-    g_shaderAverageFinal.setUniform("BackgroundColor", g_backgroundColor, 3);
+    g_shaderAverageFinal.setUniform("BackgroundColor", g_backgroundColor);
     g_shaderAverageFinal.bindTextureRECT("ColorTex0", g_accumulationTexId[0], 0);
     g_shaderAverageFinal.bindTextureRECT("ColorTex1", g_accumulationTexId[1], 1);
-    glCallList(g_quadDisplayList);
-    g_shaderAverageFinal.unbind();
+    DrawFullScreenQuad();
 
     CHECK_GL_ERRORS;
 }
@@ -833,20 +846,22 @@ void RenderWeightedSum()
     // 1. Accumulate (alpha * color) and (alpha)
     // ---------------------------------------------------------------------
 
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_accumulationFboId);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_accumulationFboId);
     glDrawBuffer(g_drawBuffers[0]);
 
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glBlendEquationEXT(GL_FUNC_ADD);
+    glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_ONE, GL_ONE);
     glEnable(GL_BLEND);
 
     g_shaderWeightedSumInit.bind();
-    g_shaderWeightedSumInit.setUniform("Alpha", (float*)&g_opacity, 1);
+    g_shaderWeightedSumInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderWeightedSumInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
+    g_shaderWeightedSumInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
+    g_shaderWeightedSumInit.setUniform("Alpha", g_opacity);
     DrawModel();
-    g_shaderWeightedSumInit.unbind();
 
     glDisable(GL_BLEND);
 
@@ -856,14 +871,13 @@ void RenderWeightedSum()
     // 2. Weighted Sum
     // ---------------------------------------------------------------------
 
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDrawBuffer(GL_BACK);
 
     g_shaderWeightedSumFinal.bind();
-    g_shaderWeightedSumFinal.setUniform("BackgroundColor", g_backgroundColor, 3);
+    g_shaderWeightedSumFinal.setUniform("BackgroundColor", g_backgroundColor);
     g_shaderWeightedSumFinal.bindTextureRECT("ColorTex", g_accumulationTexId[0], 0);
-    glCallList(g_quadDisplayList);
-    g_shaderWeightedSumFinal.unbind();
+    DrawFullScreenQuad();
 
     CHECK_GL_ERRORS;
 }
@@ -874,13 +888,11 @@ void display()
     static double s_t0 = currentSeconds();
     g_numGeoPasses = 0;
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    gluLookAt(g_pos.x, g_pos.y, g_pos.z, g_pos.x, g_pos.y, 0, 0, 1, 0);
-    glRotatef(g_rot.x, 1, 0, 0);
-    glRotatef(g_rot.y, 0, 1, 0);
-    glTranslatef(g_bbTrans.x, g_bbTrans.y, g_bbTrans.z);
-    glScalef(g_bbScale, g_bbScale, g_bbScale);
+    g_modelViewMatrix = glm::lookAt(g_pos, glm::vec3(g_pos.x, g_pos.y, 0), glm::vec3(0, -1, 0));
+    g_modelViewMatrix = glm::rotate(g_modelViewMatrix, glm::radians(g_rot.x), glm::vec3(1, 0, 0));
+    g_modelViewMatrix = glm::rotate(g_modelViewMatrix, glm::radians(g_rot.y), glm::vec3(0, 1, 0));
+    g_modelViewMatrix = glm::translate(g_modelViewMatrix, g_bbTrans);
+    g_modelViewMatrix = glm::scale(g_modelViewMatrix, glm::vec3(g_bbScale));
 
     switch (g_mode) {
         case DUAL_PEELING_MODE:
@@ -912,7 +924,7 @@ void display()
     }
 
     if (g_showOsd) {
-        DrawOsd(g_mode, g_opacity, g_numGeoPasses, s_fps);
+        //DrawOsd(g_mode, g_opacity, g_numGeoPasses, s_fps);
     }
 
     glutSwapBuffers();
@@ -936,18 +948,17 @@ void reshape(int w, int h)
         InitAccumulationRenderTargets();
     }
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(FOVY, (float)g_imageWidth/(float)g_imageHeight, ZNEAR, ZFAR);
-    glMatrixMode(GL_MODELVIEW);
+    g_projetionMatrix = glm::perspective(FOVY, (float)g_imageWidth / (float)g_imageHeight, ZNEAR, ZFAR);
 
     glViewport(0, 0, g_imageWidth, g_imageHeight);
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
 void idle()
 {
-     glutPostRedisplay();
+    glutPostRedisplay();
 }
 
 //--------------------------------------------------------------------------
@@ -998,9 +1009,9 @@ void motionFunc(int x, int y)
 void SaveFramebuffer()
 {
     std::cout << "Writing image.ppm... " << std::flush;
-    float *pixels = new float[3*g_imageWidth*g_imageHeight];
+    std::unique_ptr<float[]> pixels = std::make_unique<float[]>(3 * g_imageWidth * g_imageHeight);
     glReadBuffer(GL_BACK);
-    glReadPixels(0, 0, g_imageWidth, g_imageHeight, GL_RGB, GL_FLOAT, pixels);
+    glReadPixels(0, 0, g_imageWidth, g_imageHeight, GL_RGB, GL_FLOAT, pixels.get());
 
     char filename[] = "image.ppm";
     std::ofstream fp(filename);
@@ -1120,34 +1131,24 @@ int main(int argc, char *argv[])
     printf("     Q         - Toggle occlusion queries\n");
     printf("     +/-       - Change number of geometry passes\n\n");
 
-    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-    glutInitWindowSize(g_imageWidth, g_imageHeight);
     glutInit(&argc, argv);
-    glutCreateWindow("Dual Depth Peeling");
+    glutSetOption(GLUT_MULTISAMPLE, 8);
+    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH | GLUT_MULTISAMPLE);
+    glutInitWindowSize(g_imageWidth, g_imageHeight);
 
-    glutInitContextVersion(2, 0);
+    glutInitContextVersion(3, 3);
     glutInitContextProfile(GLUT_CORE_PROFILE);
+
+    const int windowHandle = glutCreateWindow("Dual Depth Peeling");
+    if (windowHandle == -1)
+    {
+        printf("glutCreateWindow failed. Exiting...\n");
+        exit(1);
+    }
 
     if (glewInit() != GLEW_OK)
     {
         printf("glewInit failed. Exiting...\n");
-        exit(1);
-    }
-
-    if (!glewIsSupported( "GL_VERSION_2_0 "
-                          "GL_ARB_texture_rectangle "
-                          "GL_ARB_texture_float "
-                          "GL_ARB_color_buffer_float "
-                          "GL_ARB_depth_buffer_float "))
-    {
-        printf("Unable to load the necessary extensions\n");
-        printf("This sample requires:\n");
-        printf("OpenGL version 2.0\n");
-        printf("GL_ARB_texture_rectangle\n");
-        printf("GL_ARB_texture_float\n");
-        printf("GL_ARB_color_buffer_float\n");
-        printf("GL_ARB_depth_buffer_float\n");
-        printf("Exiting...\n");
         exit(1);
     }
 

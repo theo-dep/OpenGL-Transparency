@@ -7,10 +7,14 @@
 // Copyright (c) NVIDIA Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#version 330 core
+
 vec4 ShadeFragment();
+
+out vec4 FragColor;
 
 void main(void)
 {
 	vec4 color = ShadeFragment();
-	gl_FragColor = vec4(color.rgb * color.a, color.a);
+	FragColor = vec4(color.rgb * color.a, color.a);
 }

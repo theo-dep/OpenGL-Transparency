@@ -18,6 +18,7 @@
 
 #define NUM_LINES 4
 
+#if 0
 //--------------------------------------------------------------------------
 void DrawText(int x, int y, const char *text)
 {
@@ -110,3 +111,4 @@ void DrawOsd(char mode, float opacity, int numPasses, float fps)
 	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
 }
+#endif

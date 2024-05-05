@@ -7,11 +7,15 @@
 // Copyright (c) NVIDIA Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#version 330 core
+
 uniform sampler2DRect TempTex;
+
+out vec4 FragColor;
 
 void main(void)
 {
-	gl_FragColor = texture2DRect(TempTex, gl_FragCoord.xy);
+	FragColor = texture2DRect(TempTex, gl_FragCoord.xy);
 	// for occlusion query
-	if (gl_FragColor.a == 0.0) discard;
+	if (FragColor.a == 0.0) discard;
 }

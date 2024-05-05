@@ -21,7 +21,7 @@ enum {
 	WEIGHTED_SUM_MODE
 };
 
-void DrawText(int x, int y, const char *text);
-void DrawOsd(char mode, float opacity, int numPasses, float fps);
+//void DrawText(int x, int y, const char *text);
+//void DrawOsd(char mode, float opacity, int numPasses, float fps);
 
 #endif
