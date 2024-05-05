@@ -7,7 +7,11 @@
 // Copyright (c) NVIDIA Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#version 330 core
+
+layout(location = 0) in vec3 VertexPosition;
+
 void main(void)
 {
-    gl_Position = gl_Vertex;
+    gl_Position = vec4(VertexPosition, 1.);
 }

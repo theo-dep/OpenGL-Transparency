@@ -7,9 +7,13 @@
 // Copyright (c) NVIDIA Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#version 330 core
+
 uniform sampler2DRect ColorTex0;
 uniform sampler2DRect ColorTex1;
 uniform vec3 BackgroundColor;
+
+out vec4 FragColor;
 
 void main(void)
 {
@@ -17,7 +21,7 @@ void main(void)
 	float n = texture2DRect(ColorTex1, gl_FragCoord.xy).r;
 
 	if (n == 0.0) {
-		gl_FragColor.rgb = BackgroundColor;
+		FragColor.rgb = BackgroundColor;
 		return;
 	}
 
@@ -25,5 +29,5 @@ void main(void)
 	float AvgAlpha = SumColor.a / n;
 
 	float T = pow(1.0-AvgAlpha, n);
-	gl_FragColor.rgb = AvgColor * (1.0 - T) + BackgroundColor * T;
+	FragColor.rgb = AvgColor * (1.0 - T) + BackgroundColor * T;
 }

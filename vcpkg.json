@@ -1,8 +1,9 @@
 {
   "dependencies": [
+    "assimp",
     "freeglut",
     "glew",
     "glm",
-    "assimp"
+    "freetype"
   ]
 }

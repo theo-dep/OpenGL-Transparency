@@ -7,9 +7,13 @@
 // Copyright (c) NVIDIA Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#version 330 core
+
 uniform sampler2DRect DepthBlenderTex;
 uniform sampler2DRect FrontBlenderTex;
 uniform sampler2DRect BackBlenderTex;
+
+out vec4 FragColor;
 
 void main(void)
 {
@@ -18,11 +22,11 @@ void main(void)
 	float alphaMultiplier = 1.0 - frontColor.w;
 
 	// front + back
-	gl_FragColor.rgb = frontColor.rgb + backColor * alphaMultiplier;
+	FragColor.rgb = frontColor.rgb + backColor * alphaMultiplier;
 
 	// front blender
-	//gl_FragColor.rgb = frontColor + vec3(alphaMultiplier);
+	//FragColor.rgb = frontColor + vec3(alphaMultiplier);
 
 	// back blender
-	//gl_FragColor.rgb = backColor;
+	//FragColor.rgb = backColor;
 }

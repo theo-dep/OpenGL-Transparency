@@ -14,6 +14,8 @@
 #include <nvShaderUtils.h>
 #include <nvSDKPath.h>
 
+#include <glm/gtc/type_ptr.hpp>
+
 static nv::SDKPath sdkPath;
 
 GLSLProgramObject::GLSLProgramObject() :
@@ -39,7 +41,7 @@ void GLSLProgramObject::destroy()
 	}
 }
 
-void GLSLProgramObject::attachVertexShader(std::string filename)
+void GLSLProgramObject::attachVertexShader(const std::string& filename)
 {
 	std::cerr << filename << std::endl;
     std::string resolved_path;
@@ -58,7 +60,7 @@ void GLSLProgramObject::attachVertexShader(std::string filename)
     }
 }
 
-void GLSLProgramObject::attachFragmentShader(std::string filename)
+void GLSLProgramObject::attachFragmentShader(const std::string& filename)
 {
 	std::cerr << filename << std::endl;
     std::string resolved_path;
@@ -112,33 +114,31 @@ void GLSLProgramObject::unbind()
 	glUseProgram(0);
 }
 
-void GLSLProgramObject::setUniform(std::string name, GLfloat* val, int count)
+void GLSLProgramObject::setUniform(const std::string& name, GLfloat val)
 {
 	GLint id = glGetUniformLocation(_progId, name.c_str());
-	if (id == -1) {
-#ifdef NV_REPORT_UNIFORM_ERRORS
-		std::cerr << m_vName << std::endl << m_fName << ":" << std::endl;
-		std::cerr << "Warning: Invalid uniform parameter " << name << std::endl;
-#endif
-		return;
-	}
-	switch (count) {
-		case 1:
-			glUniform1fv(id, 1, val);
-			break;
-		case 2:
-			glUniform2fv(id, 1, val);
-			break;
-		case 3:
-			glUniform3fv(id, 1, val);
-			break;
-		case 4:
-			glUniform4fv(id, 1, val);
-			break;
-	}
+	glUniform1fv(id, 1, &val);
 }
 
-void GLSLProgramObject::setTextureUnit(std::string texname, int texunit)
+void GLSLProgramObject::setUniform(const std::string& name, const glm::vec3& val)
+{
+	GLint id = glGetUniformLocation(_progId, name.c_str());
+	glUniform3fv(id, 1, glm::value_ptr(val));
+}
+
+void GLSLProgramObject::setUniform(const std::string& name, const glm::mat3& val)
+{
+	GLint id = glGetUniformLocation(_progId, name.c_str());
+	glUniformMatrix3fv(id, 1, GL_FALSE, glm::value_ptr(val));
+}
+
+void GLSLProgramObject::setUniform(const std::string& name, const glm::mat4& val)
+{
+	GLint id = glGetUniformLocation(_progId, name.c_str());
+	glUniformMatrix4fv(id, 1, GL_FALSE, glm::value_ptr(val));
+}
+
+void GLSLProgramObject::setTextureUnit(const std::string& texname, int texunit)
 {
 	GLint linked;
 	glGetProgramiv(_progId, GL_LINK_STATUS, &linked);
@@ -156,7 +156,7 @@ void GLSLProgramObject::setTextureUnit(std::string texname, int texunit)
 	glUniform1i(id, texunit);
 }
 
-void GLSLProgramObject::bindTexture(GLenum target, std::string texname, GLuint texid, int texunit)
+void GLSLProgramObject::bindTexture(GLenum target, const std::string& texname, GLuint texid, int texunit)
 {
 	glActiveTexture(GL_TEXTURE0 + texunit);
 	glBindTexture(target, texid);

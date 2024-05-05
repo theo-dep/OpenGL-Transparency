@@ -7,7 +7,11 @@
 // Copyright (c) NVIDIA Corporation. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#version 330 core
+
 uniform sampler2DRect DepthTex;
+
+out vec4 FragColor;
 
 vec4 ShadeFragment();
 
@@ -21,5 +25,5 @@ void main(void)
 
 	// Shade all the fragments behind the z-buffer
 	vec4 color = ShadeFragment();
-	gl_FragColor = vec4(color.rgb * color.a, color.a);
+	FragColor = vec4(color.rgb * color.a, color.a);
 }

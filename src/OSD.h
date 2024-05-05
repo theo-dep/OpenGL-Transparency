@@ -9,6 +9,8 @@
 #ifndef OSD_H
 #define OSD_H
 
+#include <glm/vec3.hpp>
+
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -21,7 +23,27 @@ enum {
 	WEIGHTED_SUM_MODE
 };
 
-void DrawText(int x, int y, const char *text);
+#if 0
+#define CHECK_GL_ERRORS  \
+{ \
+    GLenum err = glGetError(); \
+    if (err) \
+        printf( "Error %s at line %d\n", gluErrorString(err), __LINE__); \
+}
+#else
+#define CHECK_GL_ERRORS {}
+#endif
+
+void InitFullScreenQuad();
+void DeleteFullScreenQuad();
+void DrawFullScreenQuad();
+
+void LoadShaderText(const std::string& path);
+void DestroyShaderText();
+
+void InitText(const std::string& path);
+void DeleteText();
+
 void DrawOsd(char mode, float opacity, int numPasses, float fps);
 
 #endif
