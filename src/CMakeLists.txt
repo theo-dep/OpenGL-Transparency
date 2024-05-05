@@ -6,7 +6,7 @@ add_executable(${TARGET}
     opengl-transparency.cpp
 )
 
-target_link_libraries(${TARGET} PRIVATE nvModel freeglut_static glew_s)
-if (NOT WIN32)
-    target_link_libraries(${TARGET} PRIVATE GLU)
-endif()
+target_link_libraries(${TARGET} PRIVATE nvModel
+    $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>
+    GLEW::GLEW
+)

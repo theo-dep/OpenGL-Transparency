@@ -1,9 +1,0 @@
-[submodule "thirdparty/freeglut"]
-	path = thirdparty/freeglut
-	url = https://github.com/freeglut/freeglut.git
-	tag = v3.4.0
-[submodule "thirdparty/glew"]
-	path = thirdparty/glew
-	url = https://github.com/nigels-com/glew.git
-	tag = glew-2.1.0
-	ignore = all
