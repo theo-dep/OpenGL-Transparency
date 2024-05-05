@@ -10,12 +10,7 @@
 #ifndef GLSL_PROGRAM_OBJECT_H
 #define GLSL_PROGRAM_OBJECT_H
 
-// Alec
-#ifdef __APPLE__
-#include <OpenGL/GL.h>
-#else
 #include <GL/glew.h>
-#endif
 
 #include <string>
 #include <iostream>
@@ -58,7 +53,7 @@ public:
 	void link();
 
 	inline GLuint getProgId() { return _progId; }
-	
+
 protected:
 	std::vector<GLuint>		_vertexShaders;
 	std::vector<GLuint>		_fragmentShaders;

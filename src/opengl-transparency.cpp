@@ -15,24 +15,20 @@
 
 #pragma warning( disable : 4996 )
 
-// Alec
-//#include <nvModel.h>
-#include "nvModel.h"
 #include <nvShaderUtils.h>
 #include <nvSDKPath.h>
-#include <nvMath.h>
 #include "GLSLProgramObject.h"
 #include "Timer.h"
 #include "OSD.h"
 
-// Alec
-#ifdef __APPLE__
-#include <OpenGL/GL.h>
-#include <GLUT/glut.h>
-#else
 #include <GL/glew.h>
-#include <GL/glut.h>
-#endif
+#include <GL/freeglut.h>
+
+#include <glm/glm.hpp>
+
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 #include <iostream>
 #include <sstream>
@@ -52,9 +48,16 @@ int g_numPasses = 4;
 int g_imageWidth = 1024;
 int g_imageHeight = 768;
 
-nv::Model *g_model;
+struct Vertex {
+    glm::vec3 Position;
+    glm::vec3 Normal;
+};
+
+const aiScene *g_scene;
+const aiMesh *g_model;
 GLuint g_vboId;
 GLuint g_eboId;
+unsigned int g_modelIndexCount;
 GLuint g_quadDisplayList;
 
 bool g_useOQ = true;
@@ -93,9 +96,9 @@ int g_scaling = 0;
 int g_oldX, g_oldY;
 int g_newX, g_newY;
 float g_bbScale = 1.0;
-nv::vec3f g_bbTrans(0.0, 0.0, 0.0);
-nv::vec2f g_rot(0.0, 45.0);
-nv::vec3f g_pos(0.0, 0.0, 2.0);
+glm::vec3 g_bbTrans(0.0, 0.0, 0.0);
+glm::vec2 g_rot(0.0, 45.0);
+glm::vec3 g_pos(0.0, 0.0, 2.0);
 
 float g_white[3] = {1.0,1.0,1.0};
 float g_black[3] = {0.0};
@@ -153,26 +156,24 @@ void InitDualPeelingRenderTargets()
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                // Alec
-        //glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_FLOAT_RG32_NV, g_imageWidth, g_imageHeight,
-                glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RG32F, g_imageWidth, g_imageHeight,
-                     0, GL_RGB, GL_FLOAT, 0);
+        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RG32F,
+                     g_imageWidth, g_imageHeight, 0, GL_RGB, GL_FLOAT, 0);
 
         glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_dualFrontBlenderTexId[i]);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, g_imageWidth, g_imageHeight,
-                     0, GL_RGBA, GL_FLOAT, 0);
+        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
+                     g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
 
         glBindTexture(GL_TEXTURE_RECTANGLE_ARB, g_dualBackTempTexId[i]);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, g_imageWidth, g_imageHeight,
-                     0, GL_RGBA, GL_FLOAT, 0);
+        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
+                     g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
     }
 
     glGenTextures(1, &g_dualBackBlenderTexId);
@@ -181,8 +182,8 @@ void InitDualPeelingRenderTargets()
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGB, g_imageWidth, g_imageHeight,
-                 0, GL_RGB, GL_FLOAT, 0);
+    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGB,
+                 g_imageWidth, g_imageHeight, 0, GL_RGB, GL_FLOAT, 0);
 
     glGenFramebuffersEXT(1, &g_dualBackBlenderFboId);
     glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_dualBackBlenderFboId);
@@ -238,8 +239,6 @@ void InitFrontPeelingRenderTargets()
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                // Alec
-        //glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_DEPTH_COMPONENT32F_NV,
         glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_DEPTH_COMPONENT,
                      g_imageWidth, g_imageHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 
@@ -248,8 +247,8 @@ void InitFrontPeelingRenderTargets()
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, g_imageWidth, g_imageHeight,
-                     0, GL_RGBA, GL_FLOAT, 0);
+        glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
+                     g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
 
         glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_frontFboId[i]);
         glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT,
@@ -264,8 +263,8 @@ void InitFrontPeelingRenderTargets()
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, g_imageWidth, g_imageHeight,
-                 0, GL_RGBA, GL_FLOAT, 0);
+    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
+                 g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, 0);
 
     glGenFramebuffersEXT(1, &g_frontColorBlenderFboId);
     glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, g_frontColorBlenderFboId);
@@ -304,8 +303,6 @@ void InitAccumulationRenderTargets()
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        // Alec
-    //glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_FLOAT_R32_NV,
     glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_R32F,
                  g_imageWidth, g_imageHeight, 0, GL_RGBA, GL_FLOAT, NULL);
 
@@ -352,46 +349,82 @@ void MakeFullScreenQuad()
 //--------------------------------------------------------------------------
 void LoadModel(const char *model_filename)
 {
-    g_model = new nv::Model;
     printf("loading OBJ...\n");
-
     std::string resolved_path;
-
-    if (sdkPath.getFilePath( model_filename, resolved_path)) {
-        if (!g_model->loadModelFromFile(resolved_path.c_str())) {
-            fprintf(stderr, "Error loading model '%s'\n", model_filename);
-            exit(1);
-        }
-    }
-    else {
+    if (!sdkPath.getFilePath( model_filename, resolved_path)) {
         fprintf(stderr, "Failed to find model '%s'\n", model_filename);
         exit(1);
     }
 
     printf("compiling mesh...\n");
-    g_model->compileModel();
+    Assimp::Importer importer;
+    g_scene = importer.ReadFile(model_filename,
+        aiProcess_CalcTangentSpace       |
+        aiProcess_Triangulate            |
+        aiProcess_JoinIdenticalVertices  |
+        aiProcess_SortByPType |
+        aiProcess_GenBoundingBoxes);
 
-    printf("%d vertices\n", g_model->getPositionCount());
-    printf("%d triangles\n", g_model->getIndexCount()/3);
-    int totalVertexSize = g_model->getCompiledVertexCount() * g_model->getCompiledVertexSize() * sizeof(GLfloat);
-    int totalIndexSize = g_model->getCompiledIndexCount() * sizeof(GLuint);
+    if (g_scene == nullptr || g_scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || g_scene->mNumMeshes != 1) {
+        fprintf(stderr, "Error loading model '%s'\n", model_filename);
+        exit(1);
+    }
+
+    g_model = g_scene->mMeshes[0];
+
+    if (!g_model->HasNormals()) {
+        fprintf(stderr, "Error model has no normals '%s'\n", model_filename);
+        exit(1);
+    }
+
+    printf("%d vertices\n", g_model->mNumVertices);
+    printf("%d triangles\n", g_model->mNumFaces);
+
+    std::vector<Vertex> vertices;
+    std::vector<unsigned int> indices;
+
+    for (unsigned int i = 0; i < g_model->mNumVertices; ++i) {
+        Vertex vertex;
+        glm::vec3 vector;
+        vector.x = g_model->mVertices[i].x;
+        vector.y = g_model->mVertices[i].y;
+        vector.z = g_model->mVertices[i].z;
+        vertex.Position = vector;
+
+        vector.x = g_model->mNormals[i].x;
+        vector.y = g_model->mNormals[i].y;
+        vector.z = g_model->mNormals[i].z;
+        vertex.Normal = vector;
+
+        vertices.push_back(vertex);
+    }
+
+    for (unsigned int i = 0; i < g_model->mNumFaces; ++i) {
+        const aiFace &face = g_model->mFaces[i];
+        for (unsigned int j = 0; j < face.mNumIndices; j++) {
+            indices.push_back(face.mIndices[j]);
+        }
+    }
 
     glGenBuffers(1, &g_vboId);
     glBindBuffer(GL_ARRAY_BUFFER, g_vboId);
-    glBufferData(GL_ARRAY_BUFFER, totalVertexSize, g_model->getCompiledVertices(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    g_modelIndexCount = indices.size();
 
     glGenBuffers(1, &g_eboId);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_eboId);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, totalIndexSize, g_model->getCompiledIndices(), GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    nv::vec3f modelMin, modelMax;
-    g_model->computeBoundingBox(modelMin, modelMax);
+    const aiAABB &aabb = g_model->mAABB;
+    const glm::vec3 modelMin(aabb.mMin.x, aabb.mMin.y, aabb.mMin.z);
+    const glm::vec3 modelMax(aabb.mMax.x, aabb.mMax.y, aabb.mMax.z);
 
-    nv::vec3f diag = modelMax - modelMin;
-    g_bbScale = 1.0f / nv::length(diag) * 1.5f;
-    g_bbTrans = -g_bbScale * (modelMin + 0.5 * (modelMax - modelMin));
+    glm::vec3 diag = modelMax - modelMin;
+    g_bbScale = 1.0f / glm::length(diag) * 1.5f;
+    g_bbTrans = -g_bbScale * (modelMin + 0.5f * (modelMax - modelMin));
 }
 
 //--------------------------------------------------------------------------
@@ -399,14 +432,12 @@ void DrawModel()
 {
     glBindBuffer(GL_ARRAY_BUFFER, g_vboId);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_eboId);
-    int stride = g_model->getCompiledVertexSize() * sizeof(GLfloat);
-    int normalOffset = g_model->getCompiledNormalOffset() * sizeof(GLfloat);
-    glVertexPointer(g_model->getPositionSize(), GL_FLOAT, stride, NULL);
-    glNormalPointer(GL_FLOAT, stride, (GLubyte *)NULL + normalOffset);
+    glVertexPointer(3, GL_FLOAT, sizeof(Vertex), (GLubyte*)0);
+    glNormalPointer(GL_FLOAT, sizeof(Vertex), (GLubyte*)offsetof(Vertex, Normal));
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
 
-    glDrawElements(GL_TRIANGLES, g_model->getCompiledIndexCount(), GL_UNSIGNED_INT, NULL);
+    glDrawElements(GL_TRIANGLES, g_modelIndexCount, GL_UNSIGNED_INT, 0);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -1033,14 +1064,10 @@ void keyboardFunc(unsigned char key, int x, int y)
             break;
         case 'a':
             g_opacity -= 0.05f;
-                        //Alec
-            //g_opacity = max(g_opacity, 0.0);
             g_opacity = std::max(g_opacity, 0.0f);
             break;
         case 'd':
             g_opacity += 0.05f;
-                        //Alec
-            //g_opacity = min(g_opacity, 1.0);
             g_opacity = std::min(g_opacity, 1.0f);
             break;
         case 27:
@@ -1098,8 +1125,9 @@ int main(int argc, char *argv[])
     glutInit(&argc, argv);
     glutCreateWindow("Dual Depth Peeling");
 
-        //Alec
-#ifndef __APPLE__
+    glutInitContextVersion(2, 0);
+    glutInitContextProfile(GLUT_CORE_PROFILE);
+
     if (glewInit() != GLEW_OK)
     {
         printf("glewInit failed. Exiting...\n");
@@ -1122,7 +1150,11 @@ int main(int argc, char *argv[])
         printf("Exiting...\n");
         exit(1);
     }
-#endif
+
+    printf("GL version %s\n", glGetString(GL_VERSION));
+    printf("GL vendor %s\n", glGetString(GL_VENDOR));
+    printf("GL render %s\n", glGetString(GL_RENDERER));
+    printf("GLSL version %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
     InitGL();
     InitMenus();
