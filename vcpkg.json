@@ -1,9 +1,25 @@
 {
   "dependencies": [
-    "assimp",
-    "freeglut",
-    "glew",
-    "glm",
-    "freetype"
-  ]
+    {
+      "name": "assimp",
+      "version>=": "5.3.1"
+    },
+    {
+      "name": "freeglut",
+      "version>=": "3.4.0"
+    },
+    {
+      "name": "glew",
+      "version>=": "2.2.0#3"
+    },
+    {
+      "name": "glm",
+      "version>=": "1.0.0"
+    },
+    {
+      "name": "freetype",
+      "version>=": "2.13.2"
+    }
+  ],
+  "builtin-baseline": "326d8b43e365352ba3ccadf388d989082fe0f2a6"
 }
