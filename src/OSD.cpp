@@ -25,8 +25,6 @@
 #include <array>
 #include <map>
 
-#define NUM_LINES 4
-
 GLuint g_quadVaoId;
 GLuint g_quadVboId;
 
@@ -188,13 +186,22 @@ void InitText(const std::string& path)
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
 void DeleteText()
 {
+    for (const auto& [c, character] : g_characters)
+    {
+        glDeleteTextures(1, &character.TextureID);
+    }
+
 	glDeleteVertexArrays(1, &g_textQuadVaoId);
 	glDeleteBuffers(1, &g_textQuadVboId);
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
@@ -235,6 +242,8 @@ void DrawText(const std::string& text, float x, float y, float scale)
         // now advance cursors for next glyph (note that advance is number of 1/64 pixels)
         x += (ch.Advance >> 6) * scale; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
     }
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
@@ -300,4 +309,6 @@ void DrawOsd(char mode, float opacity, int numPasses, float fps)
 
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_BLEND);
+
+    CHECK_GL_ERRORS;
 }
