@@ -2,7 +2,6 @@ set(TARGET opengl-transparency)
 add_executable(${TARGET}
     GLSLProgramObject.h GLSLProgramObject.cpp
     OSD.h OSD.cpp
-    Timer.h
     opengl-transparency.cpp
 )
 
