@@ -1112,7 +1112,7 @@ int main(int argc, char *argv[])
     glutInitContextVersion(3, 3);
     glutInitContextProfile(GLUT_CORE_PROFILE);
 
-    const int windowHandle = glutCreateWindow("Dual Depth Peeling");
+    const int windowHandle = glutCreateWindow("Order Independent Transparency");
     if (windowHandle == -1)
     {
         printf("glutCreateWindow failed. Exiting...\n");
