@@ -1,282 +1,274 @@
 // BSP functions    by Alan Baylis 2001
 // https://www.alsprogrammingresource.com/bsp.html
+// and https://github.com/GerardMT/BSP-Tree/tree/master
 
 #include "BSP.h"
 
-#include <GL/glew.h>
-
-#include <assimp/scene.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_access.hpp>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/vec_swizzle.hpp>
+
+GLuint g_bspVboId = 0;
 GLuint g_bspEboId = 0;
 GLuint g_bspVaoId = 0;
 
-int Abs(int value)
-{
-    return value >= 0 ? value : -value;
+bsp_tree::bsp_tree(const std::vector<Vertex> &vertices) : vertices_(vertices) {
 }
 
-int SelectPartitionfromList(POLYGON* nodepolylist, VERTEX* vertices, int numpolys, int* bestfront, int* bestback)
-{
-    int count = 0, result, absdifference = 1000000000, bestplane = 0, front, back, potentialplane, polytoclassify;
-    VECTOR temp;
-
-    // Loop through all the polygons and find the best splitting plane
-    for(potentialplane = 0; potentialplane < numpolys; potentialplane++)
-    {
-        front = back = 0;
-        for (polytoclassify = 0; polytoclassify < numpolys; polytoclassify++)
-        {
-            result = SplitPolygon(nodepolylist[polytoclassify], nodepolylist[potentialplane], NULL, vertices);
-            switch (result)
-            {
-                case Front:
-                    front++;
-                break;
-
-                case Back:
-                    back++;
-                break;
-
-                case TwoFrontOneBack:
-                    front += 2;
-                    back++;
-                break;
-
-                case OneFrontTwoBack:
-                    front++;
-                    back += 2;
-                break;
-
-                case OneFrontOneBack:
-                    front++;
-                    back++;
-                break;
-            }
-        }
-        if (Abs(front - back) < absdifference)
-        {
-            absdifference = Abs(front - back);
-            bestplane = potentialplane;
-            *bestfront = front;
-            *bestback = back;
-        }
-        if (front == 0 || back == 0)
-            count++;
-    }
-    if (count == numpolys)
-        return -1;
-    else
-        return bestplane;
+unsigned int bsp_tree::polygon_index(const std::vector<polygon> &polygons) const {
+    return rand() % polygons.size();
 }
 
-void BuildBSP(BSP_node *node, VERTEX* vertices)
-{
-    int result, front, back, polytoclassify, partplane;
-    POLYGON output[3];
-
-    partplane = SelectPartitionfromList(node->nodepolylist, vertices, node->numpolys, &front, &back);
-
-    if (partplane == -1)
-    {
-        glGenVertexArrays(1, &g_bspVaoId);
-        glGenBuffers(1, &g_bspEboId);
-
-        glBindVertexArray(g_bspVaoId);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_bspEboId);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * sizeof(unsigned int), (GLubyte*)0, GL_STREAM_DRAW);
-
-        node->leaf = true;
+void bsp_tree::construct(const std::vector<polygon> &polygons) {
+    if (polygons.empty()) {
         return;
     }
 
-    node->partition = node->nodepolylist[partplane];
+    fragments_ = 0;
 
-    //Allocate memory for a front and back node
-    node->frontnode = new BSP_node;
-    node->frontnode->leaf = 0;
-    node->frontnode->numpolys = front;
-    node->frontnode->nodepolylist = new POLYGON[front];
+    root_ = new node;
+    nodes_ = 1;
+    construct_rec(polygons, root_);
 
-    node->backnode = new BSP_node;
-    node->backnode->leaf = 0;
-    node->backnode->numpolys = back;
-    node->backnode->nodepolylist = new POLYGON[back];
+    glGenBuffers(1, &g_bspVboId);
+    glGenBuffers(1, &g_bspEboId);
+    glGenVertexArrays(1, &g_bspVaoId);
 
-    //Classify each polygon in the current node with respect to the partitioning plane.
-    front = back = 0;
-    for (polytoclassify = 0; polytoclassify < node->numpolys; polytoclassify++)
-    {
-        result = SplitPolygon(node->nodepolylist[polytoclassify], node->partition, output, vertices);
-        switch (result)
-        {
-            case Front:
-                node->frontnode->nodepolylist[front] = node->nodepolylist[polytoclassify];
-                front++;
-            break;
+    glBindVertexArray(g_bspVaoId);
 
-            case Back:
-                node->backnode->nodepolylist[back] = node->nodepolylist[polytoclassify];
-                back++;
-            break;
+    CreateBufferData(g_bspVboId, g_bspEboId, vertices_, fragments() * sizeof(polygon), GL_STREAM_DRAW);
+}
 
-            case TwoFrontOneBack:
-                node->frontnode->nodepolylist[front] = output[0];
-                node->frontnode->nodepolylist[front + 1] = output[1];
-                front += 2;
-                node->backnode->nodepolylist[back] = output[2];
-                back++;
-            break;
+void bsp_tree::construct_rec(const std::vector<polygon> &polygons, node *n) {
+    unsigned int pol_i = polygon_index(polygons);
+    n->pols.push_back(polygons[pol_i]);
 
-            case OneFrontTwoBack:
-                node->frontnode->nodepolylist[front] = output[0];
-                front++;
-                node->backnode->nodepolylist[back] = output[1];
-                node->backnode->nodepolylist[back + 1] = output[2];
-                back += 2;
-            break;
+    to_plane(polygons[pol_i], n->plane);
 
-            case OneFrontOneBack:
-                node->frontnode->nodepolylist[front] = output[0];
-                front++;
-                node->backnode->nodepolylist[back] = output[1];
-                back++;
-            break;
+    std::vector<polygon> polygons_front;
+    std::vector<polygon> polygons_back;
+
+    for (unsigned int i = 0; i < polygons.size(); ++i) {
+        if (i != pol_i) {
+            switch (distance(n->plane, polygons[i])) {
+                case ON:
+                    n->pols.push_back(polygons[i]);
+                    break;
+                case FRONT:
+                    polygons_front.push_back(polygons[i]);
+                    break;
+
+                case BACK:
+                    polygons_back.push_back(polygons[i]);
+                    break;
+
+                case HALF:
+                    polygon_split(n->plane, polygons[i], polygons_front, polygons_back);
+                    break;
+            }
         }
     }
 
-    node->numpolys = 0;
-    delete[] node->nodepolylist;
+    fragments_ += n->pols.size();
 
-    BuildBSP(node->frontnode, vertices);
-    BuildBSP(node->backnode, vertices);
+    if (!polygons_front.empty()) {
+        n->r = new node;
+        ++nodes_;
+        construct_rec(polygons_front, n->r);
+    } else {
+        n->r = nullptr;
+    }
+
+    if (!polygons_back.empty()) {
+        n->l = new node;
+        ++nodes_;
+        construct_rec(polygons_back, n->l);
+    } else {
+        n->l = nullptr;
+    }
 }
 
-int RenderBSP(BSP_node *node, VERTEX* vertices, const glm::mat4& modelViewProjectionMatrix)
-{
-    int Side;
-    VECTOR Position, edge1, edge2, planeNormal, temp;
+void bsp_tree::to_plane(const polygon &pol, glm::vec4 &pl) const {
+    glm::vec3 u = vertices_[pol.i[1]].Position - vertices_[pol.i[0]].Position;
+    glm::vec3 v = vertices_[pol.i[2]].Position - vertices_[pol.i[0]].Position;
+
+    glm::vec3 r = glm::cross(u, v);
+    pl.x = r.x;
+    pl.y = r.y;
+    pl.z = r.z;
+    pl.w = -glm::dot(glm::xyz(pl), vertices_[pol.i[0]].Position);
+}
+
+bsp_tree::dist_res bsp_tree::distance(const glm::vec4 &pl, const polygon &pol) const {
+    float d1 = glm::dot(pl, glm::vec4(vertices_[pol.i[0]].Position, 1));
+    float d2 = glm::dot(pl, glm::vec4(vertices_[pol.i[1]].Position, 1));
+
+    if (d1 < 0 && d2 > 0) {
+        return bsp_tree::HALF;
+    } else {
+        float d3 = glm::dot(pl, glm::vec4(vertices_[pol.i[2]].Position, 1));
+
+        if (d3 < 0) {
+            return bsp_tree::BACK;
+        } else if (d3 > 0) {
+            return bsp_tree::FRONT;
+        } else if (d1 == 0 && d2 == 0 && d3 == 0) {
+            return bsp_tree::ON;
+        }
+    }
+
+    //unreachable
+    return static_cast<dist_res>(-1);
+}
+
+void bsp_tree::plane_segment_intersection(const glm::vec4 &pl, const glm::vec3 &a, const glm::vec3 &b, glm::vec3 &i) const {
+    float t = glm::dot(pl, glm::vec4(a, 1)) / glm::dot(glm::xyz(pl), b - a);
+    i = a + t * (a - b);
+}
+
+void bsp_tree::polygon_split_aux(const glm::vec4 &pl, const glm::vec3 &a, const glm::vec3 &b1, const glm::vec3 &b2, std::vector<polygon> &polygons_a, std::vector<polygon> &polygons_b) {
+    glm::vec3 i_ab1;
+    plane_segment_intersection(pl, a, b1, i_ab1);
+
+    glm::vec3 i_ab2;
+    plane_segment_intersection(pl, a, b2, i_ab2);
+
+#define ADD_VERTEX(Poly, Point, Normal, Index) \
+    vertices_.push_back({ Point, Normal }); Poly.i[Index] = vertices_.size() - 1;
+
+    polygon p_a;
+    glm::vec3 n_a = glm::normalize(glm::cross(i_ab1 - a, i_ab2 - a));
+    ADD_VERTEX(p_a, a, n_a, 0);
+    ADD_VERTEX(p_a, i_ab1, n_a, 1);
+    ADD_VERTEX(p_a, i_ab2, n_a, 2);
+    polygons_a.push_back(p_a);
+
+    polygon p_b1;
+    glm::vec3 n_b1 = glm::normalize(glm::cross(i_ab2 - b1, i_ab1 - b1));
+    ADD_VERTEX(p_b1, b1, n_b1, 0);
+    ADD_VERTEX(p_b1, i_ab2, n_b1, 1);
+    ADD_VERTEX(p_b1, i_ab1, n_b1, 2);
+    polygons_b.push_back(p_b1);
+
+    polygon p_b2;
+    glm::vec3 n_b2 = glm::normalize(glm::cross(b2 - b1, i_ab2 - b1));
+    ADD_VERTEX(p_b2, b1, n_b2, 0);
+    ADD_VERTEX(p_b2, b2, n_b2, 1);
+    ADD_VERTEX(p_b2, i_ab2, n_b2, 2);
+    polygons_b.push_back(p_b2);
+}
+
+void bsp_tree::polygon_split(const glm::vec4 &pl, const polygon &pol, std::vector<polygon> &polygons_front, std::vector<polygon> &polygons_back) {
+    float d1 = glm::dot(pl, glm::vec4(vertices_[pol.i[0]].Position, 1));
+    float d2 = glm::dot(pl, glm::vec4(vertices_[pol.i[1]].Position, 1));
+    float d3 = glm::dot(pl, glm::vec4(vertices_[pol.i[2]].Position, 1));
+
+    if (d1 < 0 && d2 > 0 && d3 > 0) {
+        polygon_split_aux(pl, vertices_[pol.i[0]].Position, vertices_[pol.i[1]].Position, vertices_[pol.i[2]].Position, polygons_front, polygons_back);
+    } else if (d2 < 0 && d1 > 0 && d3 > 0) {
+        polygon_split_aux(pl, vertices_[pol.i[1]].Position, vertices_[pol.i[0]].Position, vertices_[pol.i[2]].Position, polygons_front, polygons_back);
+    } else if (d3 < 0 && d1 > 0 && d2 > 0) {
+        polygon_split_aux(pl, vertices_[pol.i[2]].Position, vertices_[pol.i[0]].Position, vertices_[pol.i[1]].Position, polygons_front, polygons_back);
+    } else if (d1 > 0 && d2 < 0 && d3 < 0) {
+        polygon_split_aux(pl, vertices_[pol.i[0]].Position, vertices_[pol.i[1]].Position, vertices_[pol.i[2]].Position, polygons_back, polygons_front);
+    } else if (d2 > 0 && d1 < 0 && d3 < 0) {
+        polygon_split_aux(pl, vertices_[pol.i[1]].Position, vertices_[pol.i[0]].Position, vertices_[pol.i[2]].Position, polygons_back, polygons_front);
+    } else if (d3 > 0 && d1 < 0 && d2 < 0) {
+        polygon_split_aux(pl, vertices_[pol.i[0]].Position, vertices_[pol.i[1]].Position, vertices_[pol.i[2]].Position, polygons_back, polygons_front);
+    }
+}
+
+bsp_tree::~bsp_tree() {
+    glDeleteBuffers(1, &g_bspVboId);
+    glDeleteBuffers(1, &g_bspEboId);
+    glDeleteVertexArrays(1, &g_bspVaoId);
+
+    erase_rec(root_);
+}
+
+void bsp_tree::erase_rec(node *n) {
+    if (n->l != nullptr) {
+        erase_rec(n->l);
+    }
+
+    if (n->r != nullptr) {
+        erase_rec(n->r);
+    }
+
+    delete n;
+}
+
+unsigned int bsp_tree::nodes() {
+    return nodes_;
+}
+
+unsigned int bsp_tree::fragments() {
+    return fragments_;
+}
+
+inline int ClassifyPoint(const glm::vec3& point, const glm::vec3& pO, const glm::vec3& pN);
+
+void bsp_tree::render(const glm::mat4& modelViewProjectionMatrix) {
+    std::vector<polygon> polygons;
+    render_rec(root_, modelViewProjectionMatrix, polygons);
+
+    glBindVertexArray(g_bspVaoId);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_bspEboId);
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, polygons.size() * sizeof(polygon), &polygons[0]);
+
+    glDrawElements(GL_TRIANGLES, polygons.size(), GL_UNSIGNED_INT, 0);
+}
+
+void bsp_tree::render_rec(node *n, const glm::mat4& modelViewProjectionMatrix, std::vector<polygon> &polygons) {
+    int side;
+    glm::vec3 position, edge1, edge2, planeNormal, temp;
 
     //The current position of the player/viewpoint
-    Position.x = glm::column(modelViewProjectionMatrix, 3).x;
-    Position.y = glm::column(modelViewProjectionMatrix, 3).y;
-    Position.z = glm::column(modelViewProjectionMatrix, 3).z;
+    position.x = glm::column(modelViewProjectionMatrix, 3).x;
+    position.y = glm::column(modelViewProjectionMatrix, 3).y;
+    position.z = glm::column(modelViewProjectionMatrix, 3).z;
 
-    if (!node->leaf)
+    if (n->l != nullptr || n->r != nullptr)
     {
         // get the partitioning planes normal
-        edge1.x = vertices[node->partition.mIndices[1]].x - vertices[node->partition.mIndices[0]].x;
-        edge1.y = vertices[node->partition.mIndices[1]].y - vertices[node->partition.mIndices[0]].y;
-        edge1.z = vertices[node->partition.mIndices[1]].z - vertices[node->partition.mIndices[0]].z;
-        edge2.x = vertices[node->partition.mIndices[2]].x - vertices[node->partition.mIndices[0]].x;
-        edge2.y = vertices[node->partition.mIndices[2]].y - vertices[node->partition.mIndices[0]].y;
-        edge2.z = vertices[node->partition.mIndices[2]].z - vertices[node->partition.mIndices[0]].z;
-        planeNormal = glm::cross(edge1, edge2);
-        temp.x = vertices[node->partition.mIndices[0]].x;
-        temp.y = vertices[node->partition.mIndices[0]].y;
-        temp.z = vertices[node->partition.mIndices[0]].z;
-        Side = ClassifyPoint(Position, temp, planeNormal);
+        planeNormal = glm::xyz(n->plane);
+        temp.x = vertices_[n->pols[0].i[0]].Position.x;
+        temp.y = vertices_[n->pols[0].i[0]].Position.y;
+        temp.z = vertices_[n->pols[0].i[0]].Position.z;
+        side = ClassifyPoint(position, temp, planeNormal);
 
-        if (Side == -1)
+        if (side == -1)
         {
-            RenderBSP(node->frontnode, vertices, modelViewProjectionMatrix);
-            RenderBSP(node->backnode, vertices, modelViewProjectionMatrix);
+            render_rec(n->r, modelViewProjectionMatrix, polygons);
+            render_rec(n->l, modelViewProjectionMatrix, polygons);
         }
         else
         {
-            RenderBSP(node->backnode, vertices, modelViewProjectionMatrix);
-            RenderBSP(node->frontnode, vertices, modelViewProjectionMatrix);
+            render_rec(n->l, modelViewProjectionMatrix, polygons);
+            render_rec(n->r, modelViewProjectionMatrix, polygons);
         }
     }
 
-    if (node->leaf)
+    if (n->l == nullptr && n->r == nullptr)
     {
         //Draw polygons that are in the leaf
-        for (int loop = 0; loop < node->numpolys; loop++)
+        for (unsigned int loop = 0; loop < n->pols.size(); loop++)
         {
-            glBindVertexArray(g_bspVaoId);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_bspEboId);
-            unsigned int indices[3] = { node->nodepolylist[loop].mIndices[0], node->nodepolylist[loop].mIndices[2], node->nodepolylist[loop].mIndices[2] };
-            glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 3 * sizeof(unsigned int), indices);
-
-            glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
+            polygons.push_back(n->pols[loop]);
         }
     }
-    return 1;
 }
 
-void DeleteBSP(BSP_node *node)
+inline int ClassifyPoint(const glm::vec3& point, const glm::vec3& pO, const glm::vec3& pN)
 {
-    if (node->leaf == true)
-    {
-        glDeleteBuffers(1, &g_bspEboId);
-        glDeleteVertexArrays(1, &g_bspVaoId);
-
-        delete[] node->nodepolylist;
-        return;
-    }
-
-    DeleteBSP(node->frontnode);
-    delete node->frontnode;
-    DeleteBSP(node->backnode);
-    delete node->backnode;
-}
-
-VECTOR GetEdgeIntersection(VECTOR point0, VECTOR point1, POLYGON planePolygon, VERTEX* vertices)
-{
-    VECTOR edge1, edge2, planeNormal, pointOnPlane, intersection, temp;
-    float numerator, denominator, t;
-
-    // get a point on the plane
-    pointOnPlane.x = vertices[planePolygon.mIndices[0]].x;
-    pointOnPlane.y = vertices[planePolygon.mIndices[0]].y;
-    pointOnPlane.z = vertices[planePolygon.mIndices[0]].z;
-
-    // get the splitting planes normal
-    edge1.x = vertices[planePolygon.mIndices[1]].x - vertices[planePolygon.mIndices[0]].x;
-    edge1.y = vertices[planePolygon.mIndices[1]].y - vertices[planePolygon.mIndices[0]].y;
-    edge1.z = vertices[planePolygon.mIndices[1]].z - vertices[planePolygon.mIndices[0]].z;
-    edge2.x = vertices[planePolygon.mIndices[2]].x - vertices[planePolygon.mIndices[0]].x;
-    edge2.y = vertices[planePolygon.mIndices[2]].y - vertices[planePolygon.mIndices[0]].y;
-    edge2.z = vertices[planePolygon.mIndices[2]].z - vertices[planePolygon.mIndices[0]].z;
-    planeNormal = glm::cross(edge1, edge2);
-
-// find edge intersection:
-// intersection = p0 + (p1 - p0) * t
-// where t = (planeNormal . (pointOnPlane - p0)) / (planeNormal . (p1 - p0))
-
-    //planeNormal . (pointOnPlane - point0)
-    temp.x = pointOnPlane.x - point0.x;
-    temp.y = pointOnPlane.y - point0.y;
-    temp.z = pointOnPlane.z - point0.z;
-    numerator = glm::dot(planeNormal, temp);
-
-    //planeNormal . (point1 - point0)
-    temp.x = point1.x - point0.x;
-    temp.y = point1.y - point0.y;
-    temp.z = point1.z - point0.z;
-    denominator = glm::dot(planeNormal, temp);
-
-    if (denominator)
-        t = numerator / denominator;
-    else
-        t = 0.0;
-
-    intersection.x = point0.x + temp.x * t;
-    intersection.y = point0.y + temp.y * t;
-    intersection.z = point0.z + temp.z * t;
-
-    return intersection;
-}
-
-int ClassifyPoint(VECTOR point, VECTOR pO, VECTOR pN)
-{
-    VECTOR TempVect;
+    glm::vec3 TempVect;
     TempVect.x = pO.x - point.x;
     TempVect.y = pO.y - point.y;
     TempVect.z = pO.z - point.z;
-    VECTOR dir = TempVect;
+    glm::vec3 dir = TempVect;
     float d = glm::dot(dir, pN);
 
     if (d < -0.001f)
@@ -285,230 +277,4 @@ int ClassifyPoint(VECTOR point, VECTOR pO, VECTOR pN)
         if (d > 0.001f)
             return -1;
         return 0;
-}
-
-/*
- Although this function is called SplitPolygon, it really only splits triangles, the
- function inputs the triangle to be split and another triangle to be used for the splitting
- plane. The parameter 'polygons' is a pointer to 3 triangles for output.
- The function splits the input triangle into either 0, 2 or 3 new triangles with
- recalculated texture coordinates.
- If the polygons pointer happens to be NULL then the function will just set the outputFlag and return.
-
- The return value will be either Front, Back, TwoFrontOneBack, OneFrontTwoBack or OneFrontOneBack.
- Front means that all points are infront of the plane or the polygon lies on the plane and faces the front.
- Back means that all points are behind of the plane or the polygon lies on the plane and faces the back.
- TwoFrontOneBack means that polygons 1 and 2 are infront of the plane and polygon 3 is behind.
- OneFrontTwoBack means that polygon 1 is infront of the plane and polygons 2 and 3 are behind.
- OneFrontOneBack means that polygon 1 is infront of the plane and polygon 2 is behind, polygon 3 is not used.
-*/
-int SplitPolygon(POLYGON polygonToSplit, POLYGON planePolygon, POLYGON* polygons, VERTEX* vertices)
-{
-    VECTOR planeNormal, polysNormal, pointOnPlane, edge1, edge2, temp;
-    VERTEX ptA, ptB, outpts[4], inpts[4], intersection;
-    int count = 0, out_c = 0, in_c = 0, sideA, sideB, outputFlag;
-    float x1, x2, y1, y2, z1, z2; //, u1, u2, v1, v2, scale; // texture calculation variables
-
-    // get a point on the plane
-    pointOnPlane.x = vertices[planePolygon.mIndices[0]].x;
-    pointOnPlane.y = vertices[planePolygon.mIndices[0]].y;
-    pointOnPlane.z = vertices[planePolygon.mIndices[0]].z;
-
-    // get the splitting planes normal
-    edge1.x = vertices[planePolygon.mIndices[1]].x - vertices[planePolygon.mIndices[0]].x;
-    edge1.y = vertices[planePolygon.mIndices[1]].y - vertices[planePolygon.mIndices[0]].y;
-    edge1.z = vertices[planePolygon.mIndices[1]].z - vertices[planePolygon.mIndices[0]].z;
-    edge2.x = vertices[planePolygon.mIndices[2]].x - vertices[planePolygon.mIndices[0]].x;
-    edge2.y = vertices[planePolygon.mIndices[2]].y - vertices[planePolygon.mIndices[0]].y;
-    edge2.z = vertices[planePolygon.mIndices[2]].z - vertices[planePolygon.mIndices[0]].z;
-    planeNormal = glm::cross(edge1, edge2);
-
-    // get the normal of the polygon to split
-    edge1.x = vertices[polygonToSplit.mIndices[1]].x - vertices[polygonToSplit.mIndices[0]].x;
-    edge1.y = vertices[polygonToSplit.mIndices[1]].y - vertices[polygonToSplit.mIndices[0]].y;
-    edge1.z = vertices[polygonToSplit.mIndices[1]].z - vertices[polygonToSplit.mIndices[0]].z;
-    edge2.x = vertices[polygonToSplit.mIndices[2]].x - vertices[polygonToSplit.mIndices[0]].x;
-    edge2.y = vertices[polygonToSplit.mIndices[2]].y - vertices[polygonToSplit.mIndices[0]].y;
-    edge2.z = vertices[polygonToSplit.mIndices[2]].z - vertices[polygonToSplit.mIndices[0]].z;
-    polysNormal = glm::cross(edge1, edge2);
-
-    // check if the polygon lies on the plane
-    for (int loop = 0; loop < 3; loop++)
-    {
-        temp.x = vertices[polygonToSplit.mIndices[loop]].x;
-        temp.y = vertices[polygonToSplit.mIndices[loop]].y;
-        temp.z = vertices[polygonToSplit.mIndices[loop]].z;
-        if (ClassifyPoint(temp, pointOnPlane, planeNormal) == 0)
-            count++;
-        else
-            break;
-    }
-    if (count == 3)
-    {
-        if (ClassifyPoint(polysNormal, pointOnPlane, planeNormal) == 1)
-            return Front;
-        if (ClassifyPoint(polysNormal, pointOnPlane, planeNormal) == -1)
-            return Back;
-    }
-
-    // try to split the polygon
-    ptA = vertices[polygonToSplit.mIndices[2]];
-    temp.x = ptA.x;
-    temp.y = ptA.y;
-    temp.z = ptA.z;
-    sideA = ClassifyPoint(temp, pointOnPlane, planeNormal);
-    for (int i = -1; ++i < 3;)
-    {
-        ptB = vertices[polygonToSplit.mIndices[i]];
-        temp.x = ptB.x;
-        temp.y = ptB.y;
-        temp.z = ptB.z;
-        sideB = ClassifyPoint(temp, pointOnPlane, planeNormal);
-        if (sideB > 0)
-        {
-            if (sideA < 0)
-            {
-                // find intersection
-                edge1.x = ptA.x;
-                edge1.y = ptA.y;
-                edge1.z = ptA.z;
-                edge2.x = ptB.x;
-                edge2.y = ptB.y;
-                edge2.z = ptB.z;
-
-                temp = GetEdgeIntersection(edge1, edge2, planePolygon, vertices);
-                intersection.x = temp.x;
-                intersection.y = temp.y;
-                intersection.z = temp.z;
-
-                // find the new texture coordinates
-                x1 = ptB.x - ptA.x;
-                y1 = ptB.y - ptA.y;
-                z1 = ptB.z - ptA.z;
-                x2 = intersection.x - ptA.x;
-                y2 = intersection.y - ptA.y;
-                z2 = intersection.z - ptA.z;
-                //u1 = ptA.u;
-                //u2 = ptB.u;
-                //v1 = ptA.v;
-                //v2 = ptB.v;
-                //scale = sqrt(x2*x2+y2*y2+z2*z2)/sqrt(x1*x1+y1*y1+z1*z1);
-                //intersection.u = u1 + (u2-u1) * scale;
-                //intersection.v = v1 + (v2-v1) * scale;
-
-                outpts[out_c++] = inpts[in_c++] = intersection;
-            }
-            inpts[in_c++] = ptB;
-        }
-        else if (sideB < 0)
-        {
-            if (sideA > 0)
-            {
-                // find intersection
-                edge1.x = ptA.x;
-                edge1.y = ptA.y;
-                edge1.z = ptA.z;
-                edge2.x = ptB.x;
-                edge2.y = ptB.y;
-                edge2.z = ptB.z;
-
-                temp = GetEdgeIntersection(edge1, edge2, planePolygon, vertices);
-                intersection.x = temp.x;
-                intersection.y = temp.y;
-                intersection.z = temp.z;
-
-                // find the new texture coordinates
-                x1 = ptB.x - ptA.x;
-                y1 = ptB.y - ptA.y;
-                z1 = ptB.z - ptA.z;
-                x2 = intersection.x - ptA.x;
-                y2 = intersection.y - ptA.y;
-                z2 = intersection.z - ptA.z;
-                //u1 = ptA.u;
-                //u2 = ptB.u;
-                //v1 = ptA.v;
-                //v2 = ptB.v;
-                //scale = sqrt(x2*x2+y2*y2+z2*z2)/sqrt(x1*x1+y1*y1+z1*z1);
-                //intersection.u = u1 + (u2-u1) * scale;
-                //intersection.v = v1 + (v2-v1) * scale;
-
-                outpts[out_c++] = inpts[in_c++] = intersection;
-            }
-            outpts[out_c++] = ptB;
-        }
-        else
-            outpts[out_c++] = inpts[in_c++] = ptB;
-            ptA = ptB;
-            sideA = sideB;
-    }
-
-    if (in_c == 4)          // two polygons are infront, one behind
-    {
-        outputFlag = TwoFrontOneBack;
-        if (polygons)
-        {
-            vertices[polygons[0].mIndices[0]] = inpts[0];
-            vertices[polygons[0].mIndices[1]] = inpts[1];
-            vertices[polygons[0].mIndices[2]] = inpts[2];
-            vertices[polygons[1].mIndices[0]] = inpts[0];
-            vertices[polygons[1].mIndices[1]] = inpts[2];
-            vertices[polygons[1].mIndices[2]] = inpts[3];
-            vertices[polygons[2].mIndices[0]] = outpts[0];
-            vertices[polygons[2].mIndices[1]] = outpts[1];
-            vertices[polygons[2].mIndices[2]] = outpts[2];
-        }
-    }
-    else if (out_c == 4)    // one polygon is infront, two behind
-    {
-        outputFlag = OneFrontTwoBack;
-        if (polygons)
-        {
-            vertices[polygons[0].mIndices[0]] = inpts[0];
-            vertices[polygons[0].mIndices[1]] = inpts[1];
-            vertices[polygons[0].mIndices[2]] = inpts[2];
-            vertices[polygons[1].mIndices[0]] = outpts[0];
-            vertices[polygons[1].mIndices[1]] = outpts[1];
-            vertices[polygons[1].mIndices[2]] = outpts[2];
-            vertices[polygons[2].mIndices[0]] = outpts[0];
-            vertices[polygons[2].mIndices[1]] = outpts[2];
-            vertices[polygons[2].mIndices[2]] = outpts[3];
-        }
-    }
-    else if (in_c == 3 && out_c == 3)  // plane bisects the polygon
-    {
-        outputFlag = OneFrontOneBack;
-        if (polygons)
-        {
-            vertices[polygons[0].mIndices[0]] = inpts[0];
-            vertices[polygons[0].mIndices[1]] = inpts[1];
-            vertices[polygons[0].mIndices[2]] = inpts[2];
-            vertices[polygons[1].mIndices[0]] = outpts[0];
-            vertices[polygons[1].mIndices[1]] = outpts[1];
-            vertices[polygons[1].mIndices[2]] = outpts[2];
-        }
-    }
-    else // then polygon must be totally infront of or behind the plane
-    {
-        int side;
-
-        for (int loop = 0; loop < 3; loop++)
-        {
-            temp.x = vertices[polygonToSplit.mIndices[loop]].x;
-            temp.y = vertices[polygonToSplit.mIndices[loop]].y;
-            temp.z = vertices[polygonToSplit.mIndices[loop]].z;
-            side = ClassifyPoint(temp, pointOnPlane, planeNormal);
-            if (side == 1)
-            {
-                outputFlag = Front;
-                break;
-            }
-            else if (side == -1)
-            {
-                outputFlag = Back;
-                break;
-            }
-        }
-    }
-
-    return outputFlag;
 }

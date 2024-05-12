@@ -119,7 +119,7 @@ GLuint g_frontColorBlenderFboId;
 GLuint g_accumulationTexId[2];
 GLuint g_accumulationFboId;
 
-BSP_node* g_rootNode;
+bsp_tree* g_bspTree;
 
 GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
                            GL_COLOR_ATTACHMENT1,
@@ -296,26 +296,42 @@ void InitBSP()
 {
     printf("building BSP...\n");
 
-    POLYGON* bsppolygon = new POLYGON[g_model->mNumFaces];
+    std::vector<Vertex> vertices(g_model->mNumVertices);
+    for (unsigned int i = 0; i < g_model->mNumVertices; ++i) {
+        Vertex vertex;
+        glm::vec3 vector;
+        vector.x = g_model->mVertices[i].x;
+        vector.y = g_model->mVertices[i].y;
+        vector.z = g_model->mVertices[i].z;
+        vertex.Position = vector;
+
+        vector.x = g_model->mNormals[i].x;
+        vector.y = g_model->mNormals[i].y;
+        vector.z = g_model->mNormals[i].z;
+        vertex.Normal = vector;
+
+        vertices[i] = vertex;
+    }
+
+    std::vector<bsp_tree::polygon> polygons(g_model->mNumFaces);
     for (unsigned int i = 0; i < g_model->mNumFaces; ++i) {
         const aiFace &face = g_model->mFaces[i];
         for (unsigned int j = 0; j < 3 || j < face.mNumIndices; j++) {
-            bsppolygon[i].mIndices[j] = face.mIndices[j];
+            polygons[i].i[j] = face.mIndices[j];
         }
     }
 
-    g_rootNode = new BSP_node;
-    g_rootNode->leaf = false;                    // Set the root node to non-leaf
-    g_rootNode->numpolys = g_model->mNumFaces;   // Set the number of polygons in this node
-    g_rootNode->nodepolylist = bsppolygon;       // Set the node polygon list to copied polygons
-    BuildBSP(g_rootNode, g_model->mVertices);    // Build the BSP tree from the root node
+    g_bspTree = new bsp_tree(vertices);
+    g_bspTree->construct(polygons);
+
+    printf("%d bsp nodes\n", g_bspTree->nodes());
+    printf("%d bsp fragments\n", g_bspTree->fragments());
 }
 
 //--------------------------------------------------------------------------
 void DeleteBSP()
 {
-    DeleteBSP(g_rootNode);
-    delete g_rootNode;
+    delete g_bspTree;
 }
 
 // Function to sort triangles and reorganize vertex data in ascending order
@@ -596,11 +612,11 @@ void InitGL()
 
     BuildShaders();
     LoadModel();
+    InitBSP(); // must be after LoadModel
+
     InitFullScreenQuad();
 
     InitText();
-
-    InitBSP();
 
     glEnable(GL_MULTISAMPLE);
     glDisable(GL_CULL_FACE);
@@ -616,14 +632,13 @@ void DeleteGL()
     DeleteDualPeelingRenderTargets();
     DeleteFrontPeelingRenderTargets();
     DeleteAccumulationRenderTargets();
+    DeleteBSP();
 
     DestroyShaders();
     DeleteModel();
     DeleteFullScreenQuad();
 
     DeleteText();
-
-    DeleteBSP();
 
     glDeleteQueries(1, &g_queryId);
 
@@ -994,7 +1009,9 @@ void RenderBSP()
     g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shader3d.setUniform("Alpha", g_opacity);
-    RenderBSP(g_rootNode, g_model->mVertices, modelViewProjectionMatrix);
+    g_bspTree->render(modelViewProjectionMatrix);
+
+    g_numGeoPasses++;
 
     glDisable(GL_BLEND);
 

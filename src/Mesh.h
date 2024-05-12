@@ -12,3 +12,4 @@ struct Vertex {
 };
 
 void CreateBufferData(GLuint vboId, GLuint eboId, const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices);
+void CreateBufferData(GLuint vboId, GLuint eboId, const std::vector<Vertex>& vertices, unsigned int indexSize,  GLenum iboUsage);
