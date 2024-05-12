@@ -10,6 +10,7 @@ cmrc_add_resource_library(shaders-resources
 )
 
 add_executable(${TARGET}
+    BSP.h BSP.cpp
     GLSLProgramObject.h GLSLProgramObject.cpp
     Mesh.h Mesh.cpp
     OSD.h OSD.cpp

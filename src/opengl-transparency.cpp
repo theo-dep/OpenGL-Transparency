@@ -18,6 +18,7 @@
 #include "GLSLProgramObject.h"
 #include "Mesh.h"
 #include "OSD.h"
+#include "BSP.h"
 
 #include <GL/glew.h>
 #include <GL/freeglut.h>
@@ -51,6 +52,7 @@ int g_numPasses = 4;
 int g_imageWidth = 1024;
 int g_imageHeight = 768;
 
+Assimp::Importer g_importer;
 const aiScene *g_scene;
 const aiMesh *g_model;
 GLuint g_vboId, g_eboId, g_vaoId;
@@ -116,6 +118,8 @@ GLuint g_frontColorBlenderFboId;
 
 GLuint g_accumulationTexId[2];
 GLuint g_accumulationFboId;
+
+BSP_node* g_rootNode;
 
 GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
                            GL_COLOR_ATTACHMENT1,
@@ -285,6 +289,33 @@ void DeleteAccumulationRenderTargets()
     glDeleteTextures(2, g_accumulationTexId);
 
     CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
+void InitBSP()
+{
+    printf("building BSP...\n");
+
+    POLYGON* bsppolygon = new POLYGON[g_model->mNumFaces];
+    for (unsigned int i = 0; i < g_model->mNumFaces; ++i) {
+        const aiFace &face = g_model->mFaces[i];
+        for (unsigned int j = 0; j < 3 || j < face.mNumIndices; j++) {
+            bsppolygon[i].mIndices[j] = face.mIndices[j];
+        }
+    }
+
+    g_rootNode = new BSP_node;
+    g_rootNode->leaf = false;                    // Set the root node to non-leaf
+    g_rootNode->numpolys = g_model->mNumFaces;   // Set the number of polygons in this node
+    g_rootNode->nodepolylist = bsppolygon;       // Set the node polygon list to copied polygons
+    BuildBSP(g_rootNode, g_model->mVertices);    // Build the BSP tree from the root node
+}
+
+//--------------------------------------------------------------------------
+void DeleteBSP()
+{
+    DeleteBSP(g_rootNode);
+    delete g_rootNode;
 }
 
 // Function to sort triangles and reorganize vertex data in ascending order
@@ -569,6 +600,8 @@ void InitGL()
 
     InitText();
 
+    InitBSP();
+
     glEnable(GL_MULTISAMPLE);
     glDisable(GL_CULL_FACE);
 
@@ -589,6 +622,8 @@ void DeleteGL()
     DeleteFullScreenQuad();
 
     DeleteText();
+
+    DeleteBSP();
 
     glDeleteQueries(1, &g_queryId);
 
@@ -941,6 +976,32 @@ void RenderWeightedSum()
 }
 
 //--------------------------------------------------------------------------
+void RenderBSP()
+{
+    glClearColor(g_backgroundColor[0], g_backgroundColor[1], g_backgroundColor[2], 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glDisable(GL_DEPTH_TEST);
+
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    const glm::mat4 modelViewProjectionMatrix = g_projetionMatrix * g_modelViewMatrix;
+
+    g_shader3d.bind();
+    g_shader3d.setUniform("ModelViewProjectionMatrix", modelViewProjectionMatrix);
+    g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
+    g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
+    g_shader3d.setUniform("Alpha", g_opacity);
+    RenderBSP(g_rootNode, g_model->mVertices, modelViewProjectionMatrix);
+
+    glDisable(GL_BLEND);
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
 void displayFunc()
 {
     static std::chrono::steady_clock::time_point s_t0 = std::chrono::steady_clock::now();
@@ -967,6 +1028,9 @@ void displayFunc()
             break;
         case WEIGHTED_SUM_MODE:
             RenderWeightedSum();
+            break;
+        case BSP_MODE:
+            RenderBSP();
             break;
     }
 
@@ -1137,6 +1201,9 @@ void keyboardFunc(unsigned char key, int x, int y)
         case '4':
             g_mode = WEIGHTED_SUM_MODE;
             break;
+        case '5':
+            g_mode = BSP_MODE;
+            break;
         case 'a':
             g_opacity -= 0.05f;
             g_opacity = std::max(g_opacity, 0.0f);
@@ -1169,6 +1236,7 @@ void InitMenus()
         glutAddMenuEntry("'2' - Front peeling mode", '2');
         glutAddMenuEntry("'3' - Weighted average mode", '3');
         glutAddMenuEntry("'4' - Weighted sum mode", '4');
+        glutAddMenuEntry("'5' - BSP mode", '5');
         glutAddMenuEntry("'A' - dec uniform opacity", 'A');
         glutAddMenuEntry("'D' - inc uniform opacity", 'D');
         glutAddMenuEntry("'R' - Reload shaders", 'R');
@@ -1194,6 +1262,7 @@ int main(int argc, char *argv[])
     printf("     2         - Front to back peeling mode\n");
     printf("     3         - Weighted average mode\n");
     printf("     4         - Weighted sum mode\n");
+    printf("     5         - BSP mode\n");
     printf("     R         - Reload all shaders\n");
     printf("     B         - Change background color\n");
     printf("     Q         - Toggle occlusion queries\n");

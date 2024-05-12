@@ -306,6 +306,9 @@ void DrawOsd(char mode, float opacity, int numPasses, float fps)
 		case WEIGHTED_SUM_MODE:
 			sprintf(buf, "Weighted Sum");
 			break;
+		case BSP_MODE:
+	    	sprintf(buf, "Binary Space Partitioning");
+            break;
 	}
 
 	DrawText(buf, x1, y1, scale);
