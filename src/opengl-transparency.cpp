@@ -18,7 +18,6 @@
 #include <nvShaderUtils.h>
 #include <nvSDKPath.h>
 #include "GLSLProgramObject.h"
-#include "Timer.h"
 #include "OSD.h"
 
 #include <GL/glew.h>
@@ -39,7 +38,7 @@
 #include <algorithm>
 #include <array>
 #include <memory>
-#include <time.h>
+#include <chrono>
 
 #define FOVY 30.0f
 #define ZNEAR 0.0001f
@@ -857,9 +856,9 @@ void RenderWeightedSum()
 }
 
 //--------------------------------------------------------------------------
-void display()
+void displayFunc()
 {
-    static double s_t0 = currentSeconds();
+    static std::chrono::steady_clock::time_point s_t0 = std::chrono::steady_clock::now();
     g_numGeoPasses = 0;
 
     g_modelViewMatrix = glm::lookAt(g_pos, glm::vec3(g_pos.x, g_pos.y, 0), glm::vec3(0, -1, 0));
@@ -885,16 +884,16 @@ void display()
 
     // ---------------------------------------------------------------------
 
-    static unsigned s_N = 0;
-    s_N++;
+    static unsigned s_frame = 0;
+    s_frame++;
 
-    static float s_fps;
-    double t1 = currentSeconds();
-    double elapsedTime = t1 - s_t0;
-    if (elapsedTime > FPS_TIME_WINDOW) {
-        s_fps = static_cast<float>(s_N / elapsedTime);
-        s_N = 0;
+    static float s_fps = 0;
+    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    std::chrono::seconds elapsedTime = std::chrono::duration_cast<std::chrono::seconds>(t1 - s_t0);
+    if (elapsedTime > std::chrono::seconds{ 1 }) {
+        s_fps = static_cast<float>(s_frame / static_cast<double>(elapsedTime.count()));
         s_t0 = t1;
+        s_frame = 0;
     }
 
     if (g_showOsd) {
@@ -905,7 +904,7 @@ void display()
 }
 
 //--------------------------------------------------------------------------
-void reshape(int w, int h)
+void reshapeFunc(int w, int h)
 {
     if (g_imageWidth != w || g_imageHeight != h)
     {
@@ -930,7 +929,7 @@ void reshape(int w, int h)
 }
 
 //--------------------------------------------------------------------------
-void idle()
+void idleFunc()
 {
     glutPostRedisplay();
 }
@@ -1113,7 +1112,7 @@ int main(int argc, char *argv[])
     glutInitContextVersion(3, 3);
     glutInitContextProfile(GLUT_CORE_PROFILE);
 
-    const int windowHandle = glutCreateWindow("Dual Depth Peeling");
+    const int windowHandle = glutCreateWindow("Order Independent Transparency");
     if (windowHandle == -1)
     {
         printf("glutCreateWindow failed. Exiting...\n");
@@ -1133,9 +1132,9 @@ int main(int argc, char *argv[])
 
     InitGL();
     InitMenus();
-    glutDisplayFunc(display);
-    glutReshapeFunc(reshape);
-    glutIdleFunc(idle);
+    glutDisplayFunc(displayFunc);
+    glutReshapeFunc(reshapeFunc);
+    glutIdleFunc(idleFunc);
     glutMouseFunc(mouseFunc);
     glutMotionFunc(motionFunc);
     glutKeyboardFunc(keyboardFunc);

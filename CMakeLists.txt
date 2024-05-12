@@ -5,6 +5,7 @@ project(opengl-transparency VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(FreeGLUT CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
