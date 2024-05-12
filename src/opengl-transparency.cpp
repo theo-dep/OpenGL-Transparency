@@ -71,6 +71,8 @@ GLuint g_queryId;
 
 static nv::SDKPath sdkPath;
 
+GLSLProgramObject g_shader3d;
+
 GLSLProgramObject g_shaderDualInit;
 GLSLProgramObject g_shaderDualPeel;
 GLSLProgramObject g_shaderDualBlend;
@@ -402,6 +404,12 @@ void BuildShaders()
 {
     printf("\nloading shaders...\n");
 
+    g_shader3d.attachVertexShader(SHADER_PATH "shade_vertex.glsl");
+    g_shader3d.attachVertexShader(SHADER_PATH "3d_vertex.glsl");
+    g_shader3d.attachFragmentShader(SHADER_PATH "shade_fragment.glsl");
+    g_shader3d.attachFragmentShader(SHADER_PATH "3d_fragment.glsl");
+    g_shader3d.link();
+
     g_shaderDualInit.attachVertexShader(SHADER_PATH "dual_peeling_init_vertex.glsl");
     g_shaderDualInit.attachFragmentShader(SHADER_PATH "dual_peeling_init_fragment.glsl");
     g_shaderDualInit.link();
@@ -468,6 +476,8 @@ void BuildShaders()
 //--------------------------------------------------------------------------
 void DestroyShaders()
 {
+    g_shader3d.destroy();
+
     g_shaderDualInit.destroy();
     g_shaderDualPeel.destroy();
     g_shaderDualBlend.destroy();
@@ -539,6 +549,30 @@ glm::mat3 normalMatrix(const glm::mat4 &mat)
     const glm::mat3 mat3(mat);
     const glm::mat3 normalMat = glm::inverseTranspose(mat3);
     return normalMat;
+}
+
+//--------------------------------------------------------------------------
+void RenderNormalBlending()
+{
+    glClearColor(g_backgroundColor[0], g_backgroundColor[1], g_backgroundColor[2], 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glDisable(GL_DEPTH_TEST);
+
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    g_shader3d.bind();
+    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
+    g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
+    g_shader3d.setUniform("Alpha", g_opacity);
+    DrawModel();
+
+    glDisable(GL_BLEND);
+
+    CHECK_GL_ERRORS;
 }
 
 //--------------------------------------------------------------------------
@@ -728,8 +762,7 @@ void RenderFrontToBackPeeling()
         glEnable(GL_BLEND);
 
         glBlendEquation(GL_FUNC_ADD);
-        glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE,
-                            GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
+        glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
 
         g_shaderFrontBlend.bind();
         g_shaderFrontBlend.bindTextureRECT("TempTex", g_frontColorTexId[currId], 0);
@@ -868,6 +901,9 @@ void displayFunc()
     g_modelViewMatrix = glm::scale(g_modelViewMatrix, glm::vec3(g_bbScale));
 
     switch (g_mode) {
+        case NORMAL_BLENDING_MODE:
+            RenderNormalBlending();
+            break;
         case DUAL_PEELING_MODE:
             RenderDualPeeling();
             break;
@@ -1034,6 +1070,9 @@ void keyboardFunc(unsigned char key, int x, int y)
         case 'r':
             ReloadShaders();
             break;
+        case '0':
+            g_mode = NORMAL_BLENDING_MODE;
+            break;
         case '1':
             g_mode = DUAL_PEELING_MODE;
             break;
@@ -1073,6 +1112,7 @@ void InitMenus()
     int objectMenuId = glutCreateMenu(menuFunc);
     {
         glutCreateMenu(menuFunc);
+        glutAddMenuEntry("'0' - Normal blending mode", '0');
         glutAddMenuEntry("'1' - Dual peeling mode", '1');
         glutAddMenuEntry("'2' - Front peeling mode", '2');
         glutAddMenuEntry("'3' - Weighted average mode", '3');
@@ -1095,6 +1135,7 @@ int main(int argc, char *argv[])
     printf("dual_depth_peeling - sample comparing multiple order independent transparency techniques\n");
     printf("  Commands:\n");
     printf("     A/D       - Change uniform opacity\n");
+    printf("     0         - Normal blending mode\n");
     printf("     1         - Dual peeling mode\n");
     printf("     2         - Front to back peeling mode\n");
     printf("     3         - Weighted average mode\n");

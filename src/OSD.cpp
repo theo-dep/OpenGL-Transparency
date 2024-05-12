@@ -290,6 +290,9 @@ void DrawOsd(char mode, float opacity, int numPasses, float fps)
 	y1 += lineHeight;
 
 	switch (mode) {
+	    case NORMAL_BLENDING_MODE:
+	        sprintf(buf, "Normal Blending");
+			break;
 		case DUAL_PEELING_MODE:
 			sprintf(buf, "Dual Peeling");
 			break;
