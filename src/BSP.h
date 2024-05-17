@@ -15,17 +15,19 @@
 class bsp_tree {
 public:
     struct polygon {
-        std::array<unsigned int, 3> i;
+        std::array<Vertex, 3> v;
     };
-
-    bsp_tree(const std::vector<Vertex> &vertices);
-    ~bsp_tree();
 
     /**
      * Construct the BSP tree from the list of polygons provided.
      * @param polygons list of polygons.
      */
     void construct(const std::vector<polygon> &polygons);
+
+    /**
+     * Destroy the BSP tree (CPU and GPU data)
+     */
+    void destroy();
 
     /**
      * Return the number of nodes which compose the BSP tree.
@@ -49,10 +51,9 @@ private:
         node *l;
         node *r;
         std::vector<polygon> pols;
+        polygon partition;
         glm::vec4 plane;
     };
-
-    std::vector<Vertex> vertices_;
 
     node *root_;
 
@@ -72,7 +73,7 @@ private:
      * @param polygons list of polygons.
      * @param n node.
      */
-    void construct_rec(const std::vector<polygon> &polygons, node *n);
+    void construct_rec(/*const*/ std::vector<polygon> &polygons, node *n);
 
     /**
      * Compute the plane defined by a polygon.
@@ -142,7 +143,7 @@ private:
      * Render recursively all tree nodes. Including <b>n</b>.
      * @param n tree root node.
      * @param modelViewProjectionMatrix
-     * @param polygons list of polygons back to front
+     * @param vertices list of polygons back to front
      */
-    void render_rec(node *n, const glm::mat4& modelViewProjectionMatrix, std::vector<polygon> &polygons);
+    void render_rec(node *n, const glm::mat4& modelViewProjectionMatrix, std::vector<Vertex> &vertices);
 };

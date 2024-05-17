@@ -119,7 +119,7 @@ GLuint g_frontColorBlenderFboId;
 GLuint g_accumulationTexId[2];
 GLuint g_accumulationFboId;
 
-bsp_tree* g_bspTree;
+bsp_tree g_bspTree;
 
 GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
                            GL_COLOR_ATTACHMENT1,
@@ -296,42 +296,36 @@ void InitBSP()
 {
     printf("building BSP...\n");
 
-    std::vector<Vertex> vertices(g_model->mNumVertices);
-    for (unsigned int i = 0; i < g_model->mNumVertices; ++i) {
-        Vertex vertex;
-        glm::vec3 vector;
-        vector.x = g_model->mVertices[i].x;
-        vector.y = g_model->mVertices[i].y;
-        vector.z = g_model->mVertices[i].z;
-        vertex.Position = vector;
-
-        vector.x = g_model->mNormals[i].x;
-        vector.y = g_model->mNormals[i].y;
-        vector.z = g_model->mNormals[i].z;
-        vertex.Normal = vector;
-
-        vertices[i] = vertex;
-    }
-
     std::vector<bsp_tree::polygon> polygons(g_model->mNumFaces);
     for (unsigned int i = 0; i < g_model->mNumFaces; ++i) {
         const aiFace &face = g_model->mFaces[i];
         for (unsigned int j = 0; j < 3 || j < face.mNumIndices; j++) {
-            polygons[i].i[j] = face.mIndices[j];
+            Vertex vertex;
+            glm::vec3 vector;
+            vector.x = g_model->mVertices[face.mIndices[j]].x;
+            vector.y = g_model->mVertices[face.mIndices[j]].y;
+            vector.z = g_model->mVertices[face.mIndices[j]].z;
+            vertex.Position = vector;
+
+            vector.x = g_model->mNormals[face.mIndices[j]].x;
+            vector.y = g_model->mNormals[face.mIndices[j]].y;
+            vector.z = g_model->mNormals[face.mIndices[j]].z;
+            vertex.Normal = vector;
+
+            polygons[i].v[j] = vertex;
         }
     }
 
-    g_bspTree = new bsp_tree(vertices);
-    g_bspTree->construct(polygons);
+    g_bspTree.construct(polygons);
 
-    printf("%d bsp nodes\n", g_bspTree->nodes());
-    printf("%d bsp fragments\n", g_bspTree->fragments());
+    printf("%d bsp nodes\n", g_bspTree.nodes());
+    printf("%d bsp fragments from %ld polygons\n", g_bspTree.fragments(), polygons.size());
 }
 
 //--------------------------------------------------------------------------
 void DeleteBSP()
 {
-    delete g_bspTree;
+    g_bspTree.destroy();
 }
 
 // Function to sort triangles and reorganize vertex data in ascending order
@@ -1009,7 +1003,7 @@ void RenderBSP()
     g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shader3d.setUniform("Alpha", g_opacity);
-    g_bspTree->render(modelViewProjectionMatrix);
+    g_bspTree.render(modelViewProjectionMatrix);
 
     g_numGeoPasses++;
 
