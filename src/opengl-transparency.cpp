@@ -437,6 +437,19 @@ void LoadModel(const char *model_filename)
 }
 
 //--------------------------------------------------------------------------
+void DeleteModel()
+{
+    glDeleteBuffers(1, &g_vboId);
+    glDeleteBuffers(1, &g_eboId);
+    glDeleteVertexArrays(1, &g_vaoId);
+
+    glDeleteBuffers(1, &g_sortedVboId);
+    glDeleteBuffers(1, &g_sortedEboId);
+    glDeleteVertexArrays(1, &g_sortedVaoId);
+
+}
+
+//--------------------------------------------------------------------------
 void DrawModel(bool sorted = false)
 {
     glBindVertexArray(sorted ? g_sortedVaoId : g_vaoId);
@@ -584,9 +597,13 @@ void DeleteGL()
     DeleteFrontPeelingRenderTargets();
     DeleteAccumulationRenderTargets();
 
+    DestroyShaders();
+    DeleteModel();
     DeleteFullScreenQuad();
 
     DeleteText();
+
+    glDeleteQueries(1, &g_queryId);
 
     CHECK_GL_ERRORS;
 }
