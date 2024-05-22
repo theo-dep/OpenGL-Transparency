@@ -1,6 +1,7 @@
 set(TARGET opengl-transparency)
 add_executable(${TARGET}
     GLSLProgramObject.h GLSLProgramObject.cpp
+    Mesh.h Mesh.cpp
     OSD.h OSD.cpp
     opengl-transparency.cpp
 )
