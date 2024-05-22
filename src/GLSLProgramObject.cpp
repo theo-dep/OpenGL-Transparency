@@ -7,16 +7,14 @@
 // Copyright (c) NVIDIA Corporation. All rights reserved.
 ////////////////////////////////////////////////////////////////////////////////
 
-#define NV_REPORT_COMPILE_ERRORS
-//#define NV_REPORT_UNIFORM_ERRORS
-
 #include "GLSLProgramObject.h"
-#include <nvShaderUtils.h>
-#include <nvSDKPath.h>
 
 #include <glm/gtc/type_ptr.hpp>
 
-static nv::SDKPath sdkPath;
+#include <cmrc/cmrc.hpp>
+CMRC_DECLARE(shaders);
+
+#include <iostream>
 
 GLSLProgramObject::GLSLProgramObject() :
 	_progId(0)
@@ -43,40 +41,54 @@ void GLSLProgramObject::destroy()
 
 void GLSLProgramObject::attachVertexShader(const std::string& filename)
 {
-	std::cerr << filename << std::endl;
-    std::string resolved_path;
+	std::cout << filename << std::endl;
 
-    if (sdkPath.getFilePath( filename.c_str(), resolved_path)) {
-	    GLuint shaderId = nv::CompileGLSLShaderFromFile(GL_VERTEX_SHADER, resolved_path.c_str());
-	    if (shaderId == 0) {
-		    std::cerr << "Error: Vertex shader failed to compile" << std::endl;
-		    exit(1);
-	    }
-	    _vertexShaders.push_back(shaderId);
-    }
-    else {
+    auto shaderFilesystem = cmrc::shaders::get_filesystem();
+    if (!shaderFilesystem.exists("shaders/" + filename)) {
         std::cerr << "Error: Failed to find vertex shader" << std::endl;
 		exit(1);
     }
+
+    GLuint shaderId = glCreateShader(GL_VERTEX_SHADER);
+    if (shaderId == 0) {
+	    std::cerr << "Error: Vertex shader failed to create" << std::endl;
+	    exit(1);
+    }
+
+    auto shaderFile = shaderFilesystem.open("shaders/" + filename);
+	auto shader = std::string(shaderFile.cbegin(), shaderFile.cend());
+	const char *shaderStr = shader.c_str();
+
+	glShaderSource(shaderId, 1, &shaderStr, NULL);
+    glCompileShader(shaderId);
+
+    _vertexShaders.push_back(shaderId);
 }
 
 void GLSLProgramObject::attachFragmentShader(const std::string& filename)
 {
-	std::cerr << filename << std::endl;
-    std::string resolved_path;
+	std::cout << filename << std::endl;
 
-    if (sdkPath.getFilePath( filename.c_str(), resolved_path)) {
-	    GLuint shaderId = nv::CompileGLSLShaderFromFile(GL_FRAGMENT_SHADER, resolved_path.c_str());
-	    if (shaderId == 0) {
-		    std::cerr << "Error: Fragment shader failed to compile" << std::endl;
-		    exit(1);
-	    }
-	    _fragmentShaders.push_back(shaderId);
-    }
-    else {
+    auto shaderFilesystem = cmrc::shaders::get_filesystem();
+    if (!shaderFilesystem.exists("shaders/" + filename)) {
         std::cerr << "Error: Failed to find fragment shader" << std::endl;
 		exit(1);
     }
+
+    GLuint shaderId = glCreateShader(GL_FRAGMENT_SHADER);
+    if (shaderId == 0) {
+	    std::cerr << "Error: Fragment shader failed to create" << std::endl;
+	    exit(1);
+    }
+
+    auto shaderFile = shaderFilesystem.open("shaders/" + filename);
+	auto shader = std::string(shaderFile.cbegin(), shaderFile.cend());
+	const char *shaderStr = shader.c_str();
+
+	glShaderSource(shaderId, 1, &shaderStr, NULL);
+    glCompileShader(shaderId);
+
+    _fragmentShaders.push_back(shaderId);
 }
 
 void GLSLProgramObject::link()
@@ -148,9 +160,7 @@ void GLSLProgramObject::setTextureUnit(const std::string& texname, int texunit)
 	}
 	GLint id = glGetUniformLocation(_progId, texname.c_str());
 	if (id == -1) {
-#ifdef NV_REPORT_UNIFORM_ERRORS
 		std::cerr << "Warning: Invalid texture " << texname << std::endl;
-#endif
 		return;
 	}
 	glUniform1i(id, texunit);

@@ -11,8 +11,10 @@ find_package(FreeGLUT CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 find_package(Freetype CONFIG REQUIRED)
+find_package(CMakeRC CONFIG REQUIRED)
 
-include_directories(common/include)
+set(BINARY_DIR ${CMAKE_SOURCE_DIR}/${CMAKE_BUILD_TYPE}/bin)
+add_subdirectory(media)
 
 if(WIN32)
     add_definitions(-DNOMINMAX)

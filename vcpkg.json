@@ -19,6 +19,10 @@
     {
       "name": "freetype",
       "version>=": "2.13.2"
+    },
+    {
+      "name": "cmakerc",
+      "version>=": "2023-07-24"
     }
   ],
   "builtin-baseline": "326d8b43e365352ba3ccadf388d989082fe0f2a6"

@@ -24,6 +24,7 @@
 #include <sstream>
 #include <array>
 #include <map>
+#include <filesystem>
 
 GLuint g_quadVaoId;
 GLuint g_quadVboId;
@@ -84,10 +85,10 @@ void DrawFullScreenQuad()
 }
 
 //--------------------------------------------------------------------------
-void LoadShaderText(const std::string& path)
+void LoadShaderText()
 {
-	g_shaderText.attachVertexShader(path + "text_vertex.glsl");
-    g_shaderText.attachFragmentShader(path + "text_fragment.glsl");
+	g_shaderText.attachVertexShader("text_vertex.glsl");
+    g_shaderText.attachFragmentShader("text_fragment.glsl");
     g_shaderText.link();
 }
 
@@ -98,7 +99,7 @@ void DestroyShaderText()
 }
 
 //--------------------------------------------------------------------------
-void InitText(const std::string& path)
+void InitText()
 {
 	// FreeType
     // --------
@@ -111,7 +112,7 @@ void InitText(const std::string& path)
     }
 
 	// find path to font
-    std::string fontName = path + "/Antonio-Regular.ttf";
+    std::string fontName = std::filesystem::canonical("fonts/Antonio-Regular.ttf").string();
     if (fontName.empty())
     {
         std::cout << "ERROR::FREETYPE: Failed to load font_name" << std::endl;

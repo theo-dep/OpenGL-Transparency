@@ -9,12 +9,6 @@
 #ifndef OSD_H
 #define OSD_H
 
-#include <glm/vec3.hpp>
-
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <time.h>
 
 enum {
 	NORMAL_BLENDING_MODE,
@@ -39,10 +33,10 @@ void InitFullScreenQuad();
 void DeleteFullScreenQuad();
 void DrawFullScreenQuad();
 
-void LoadShaderText(const std::string& path);
+void LoadShaderText();
 void DestroyShaderText();
 
-void InitText(const std::string& path);
+void InitText();
 void DeleteText();
 
 void DrawOsd(char mode, float opacity, int numPasses, float fps);

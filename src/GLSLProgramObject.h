@@ -17,7 +17,6 @@
 #include <glm/mat4x4.hpp>
 
 #include <string>
-#include <iostream>
 #include <vector>
 
 class GLSLProgramObject
