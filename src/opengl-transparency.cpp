@@ -15,8 +15,6 @@
 
 #pragma warning( disable : 4996 )
 
-#include <nvShaderUtils.h>
-#include <nvSDKPath.h>
 #include "GLSLProgramObject.h"
 #include "Mesh.h"
 #include "OSD.h"
@@ -41,6 +39,7 @@
 #include <memory>
 #include <chrono>
 #include <unordered_map>
+#include <filesystem>
 
 #define FOVY 30.0f
 #define ZNEAR 0.0001f
@@ -60,12 +59,6 @@ unsigned int g_modelIndexCount;
 
 bool g_useOQ = true;
 GLuint g_queryId;
-
-#define MODEL_FILENAME "media/models/dragon.obj"
-#define FONT_PATH "media/fonts"
-#define SHADER_PATH "src/shaders/"
-
-static nv::SDKPath sdkPath;
 
 GLSLProgramObject g_shader3d;
 
@@ -344,16 +337,10 @@ void SortAndReorganizeTriangles(std::vector<unsigned int>& indices, std::vector<
 }
 
 //--------------------------------------------------------------------------
-void LoadModel(const char *model_filename)
+void LoadModel()
 {
     printf("loading OBJ...\n");
-    std::string resolved_path;
-    if (!sdkPath.getFilePath( model_filename, resolved_path)) {
-        fprintf(stderr, "Failed to find model '%s'\n", model_filename);
-        exit(1);
-    }
-
-    printf("compiling mesh...\n");
+    const std::string model_filename = std::filesystem::canonical("models/dragon.obj").string();
     Assimp::Importer importer;
     g_scene = importer.ReadFile(model_filename,
         aiProcess_CalcTangentSpace       |
@@ -363,14 +350,14 @@ void LoadModel(const char *model_filename)
         aiProcess_GenBoundingBoxes);
 
     if (g_scene == nullptr || g_scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || g_scene->mNumMeshes != 1) {
-        fprintf(stderr, "Error loading model '%s'\n", model_filename);
+        std::cerr << "Error loading model " << model_filename << std::endl;
         exit(1);
     }
 
     g_model = g_scene->mMeshes[0];
 
     if (!g_model->HasNormals()) {
-        fprintf(stderr, "Error model has no normals '%s'\n", model_filename);
+        std::cerr << "Error model has no normals " << model_filename << std::endl;
         exit(1);
     }
 
@@ -465,71 +452,71 @@ void BuildShaders()
 {
     printf("\nloading shaders...\n");
 
-    g_shader3d.attachVertexShader(SHADER_PATH "shade_vertex.glsl");
-    g_shader3d.attachVertexShader(SHADER_PATH "3d_vertex.glsl");
-    g_shader3d.attachFragmentShader(SHADER_PATH "shade_fragment.glsl");
-    g_shader3d.attachFragmentShader(SHADER_PATH "3d_fragment.glsl");
+    g_shader3d.attachVertexShader("shade_vertex.glsl");
+    g_shader3d.attachVertexShader("3d_vertex.glsl");
+    g_shader3d.attachFragmentShader("shade_fragment.glsl");
+    g_shader3d.attachFragmentShader("3d_fragment.glsl");
     g_shader3d.link();
 
-    g_shaderDualInit.attachVertexShader(SHADER_PATH "dual_peeling_init_vertex.glsl");
-    g_shaderDualInit.attachFragmentShader(SHADER_PATH "dual_peeling_init_fragment.glsl");
+    g_shaderDualInit.attachVertexShader("dual_peeling_init_vertex.glsl");
+    g_shaderDualInit.attachFragmentShader("dual_peeling_init_fragment.glsl");
     g_shaderDualInit.link();
 
-    g_shaderDualPeel.attachVertexShader(SHADER_PATH "shade_vertex.glsl");
-    g_shaderDualPeel.attachVertexShader(SHADER_PATH "dual_peeling_peel_vertex.glsl");
-    g_shaderDualPeel.attachFragmentShader(SHADER_PATH "shade_fragment.glsl");
-    g_shaderDualPeel.attachFragmentShader(SHADER_PATH "dual_peeling_peel_fragment.glsl");
+    g_shaderDualPeel.attachVertexShader("shade_vertex.glsl");
+    g_shaderDualPeel.attachVertexShader("dual_peeling_peel_vertex.glsl");
+    g_shaderDualPeel.attachFragmentShader("shade_fragment.glsl");
+    g_shaderDualPeel.attachFragmentShader("dual_peeling_peel_fragment.glsl");
     g_shaderDualPeel.link();
 
-    g_shaderDualBlend.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
-    g_shaderDualBlend.attachFragmentShader(SHADER_PATH "dual_peeling_blend_fragment.glsl");
+    g_shaderDualBlend.attachVertexShader("quad_vertex.glsl");
+    g_shaderDualBlend.attachFragmentShader("dual_peeling_blend_fragment.glsl");
     g_shaderDualBlend.link();
 
-    g_shaderDualFinal.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
-    g_shaderDualFinal.attachFragmentShader(SHADER_PATH "dual_peeling_final_fragment.glsl");
+    g_shaderDualFinal.attachVertexShader("quad_vertex.glsl");
+    g_shaderDualFinal.attachFragmentShader("dual_peeling_final_fragment.glsl");
     g_shaderDualFinal.link();
 
-    g_shaderFrontInit.attachVertexShader(SHADER_PATH "shade_vertex.glsl");
-    g_shaderFrontInit.attachVertexShader(SHADER_PATH "front_peeling_init_vertex.glsl");
-    g_shaderFrontInit.attachFragmentShader(SHADER_PATH "shade_fragment.glsl");
-    g_shaderFrontInit.attachFragmentShader(SHADER_PATH "front_peeling_init_fragment.glsl");
+    g_shaderFrontInit.attachVertexShader("shade_vertex.glsl");
+    g_shaderFrontInit.attachVertexShader("front_peeling_init_vertex.glsl");
+    g_shaderFrontInit.attachFragmentShader("shade_fragment.glsl");
+    g_shaderFrontInit.attachFragmentShader("front_peeling_init_fragment.glsl");
     g_shaderFrontInit.link();
 
-    g_shaderFrontPeel.attachVertexShader(SHADER_PATH "shade_vertex.glsl");
-    g_shaderFrontPeel.attachVertexShader(SHADER_PATH "front_peeling_peel_vertex.glsl");
-    g_shaderFrontPeel.attachFragmentShader(SHADER_PATH "shade_fragment.glsl");
-    g_shaderFrontPeel.attachFragmentShader(SHADER_PATH "front_peeling_peel_fragment.glsl");
+    g_shaderFrontPeel.attachVertexShader("shade_vertex.glsl");
+    g_shaderFrontPeel.attachVertexShader("front_peeling_peel_vertex.glsl");
+    g_shaderFrontPeel.attachFragmentShader("shade_fragment.glsl");
+    g_shaderFrontPeel.attachFragmentShader("front_peeling_peel_fragment.glsl");
     g_shaderFrontPeel.link();
 
-    g_shaderFrontBlend.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
-    g_shaderFrontBlend.attachFragmentShader(SHADER_PATH "front_peeling_blend_fragment.glsl");
+    g_shaderFrontBlend.attachVertexShader("quad_vertex.glsl");
+    g_shaderFrontBlend.attachFragmentShader("front_peeling_blend_fragment.glsl");
     g_shaderFrontBlend.link();
 
-    g_shaderFrontFinal.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
-    g_shaderFrontFinal.attachFragmentShader(SHADER_PATH "front_peeling_final_fragment.glsl");
+    g_shaderFrontFinal.attachVertexShader("quad_vertex.glsl");
+    g_shaderFrontFinal.attachFragmentShader("front_peeling_final_fragment.glsl");
     g_shaderFrontFinal.link();
 
-    g_shaderAverageInit.attachVertexShader(SHADER_PATH "shade_vertex.glsl");
-    g_shaderAverageInit.attachVertexShader(SHADER_PATH "wavg_init_vertex.glsl");
-    g_shaderAverageInit.attachFragmentShader(SHADER_PATH "shade_fragment.glsl");
-    g_shaderAverageInit.attachFragmentShader(SHADER_PATH "wavg_init_fragment.glsl");
+    g_shaderAverageInit.attachVertexShader("shade_vertex.glsl");
+    g_shaderAverageInit.attachVertexShader("wavg_init_vertex.glsl");
+    g_shaderAverageInit.attachFragmentShader("shade_fragment.glsl");
+    g_shaderAverageInit.attachFragmentShader("wavg_init_fragment.glsl");
     g_shaderAverageInit.link();
 
-    g_shaderAverageFinal.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
-    g_shaderAverageFinal.attachFragmentShader(SHADER_PATH "wavg_final_fragment.glsl");
+    g_shaderAverageFinal.attachVertexShader("quad_vertex.glsl");
+    g_shaderAverageFinal.attachFragmentShader("wavg_final_fragment.glsl");
     g_shaderAverageFinal.link();
 
-    g_shaderWeightedSumInit.attachVertexShader(SHADER_PATH "shade_vertex.glsl");
-    g_shaderWeightedSumInit.attachVertexShader(SHADER_PATH "wsum_init_vertex.glsl");
-    g_shaderWeightedSumInit.attachFragmentShader(SHADER_PATH "shade_fragment.glsl");
-    g_shaderWeightedSumInit.attachFragmentShader(SHADER_PATH "wsum_init_fragment.glsl");
+    g_shaderWeightedSumInit.attachVertexShader("shade_vertex.glsl");
+    g_shaderWeightedSumInit.attachVertexShader("wsum_init_vertex.glsl");
+    g_shaderWeightedSumInit.attachFragmentShader("shade_fragment.glsl");
+    g_shaderWeightedSumInit.attachFragmentShader("wsum_init_fragment.glsl");
     g_shaderWeightedSumInit.link();
 
-    g_shaderWeightedSumFinal.attachVertexShader(SHADER_PATH "quad_vertex.glsl");
-    g_shaderWeightedSumFinal.attachFragmentShader(SHADER_PATH "wsum_final_fragment.glsl");
+    g_shaderWeightedSumFinal.attachVertexShader("quad_vertex.glsl");
+    g_shaderWeightedSumFinal.attachFragmentShader("wsum_final_fragment.glsl");
     g_shaderWeightedSumFinal.link();
 
-    LoadShaderText(SHADER_PATH);
+    LoadShaderText();
 
     CHECK_GL_ERRORS;
 }
@@ -577,10 +564,10 @@ void InitGL()
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     BuildShaders();
-    LoadModel(MODEL_FILENAME);
+    LoadModel();
     InitFullScreenQuad();
 
-    InitText(FONT_PATH);
+    InitText();
 
     glEnable(GL_MULTISAMPLE);
     glDisable(GL_CULL_FACE);
@@ -752,7 +739,7 @@ void RenderDualPeeling()
     glDrawBuffer(GL_BACK);
 
     g_shaderDualFinal.bind();
-    g_shaderDualFinal.bindTextureRECT("DepthBlenderTex", g_dualDepthTexId[currId], 0);
+    //g_shaderDualFinal.bindTextureRECT("DepthBlenderTex", g_dualDepthTexId[currId], 0);
     g_shaderDualFinal.bindTextureRECT("FrontBlenderTex", g_dualFrontBlenderTexId[currId], 1);
     g_shaderDualFinal.bindTextureRECT("BackBlenderTex", g_dualBackBlenderTexId, 2);
     DrawFullScreenQuad();
@@ -1197,6 +1184,8 @@ void InitMenus()
 //--------------------------------------------------------------------------
 int main(int argc, char *argv[])
 {
+    std::filesystem::current_path(std::filesystem::canonical(argv[0]).parent_path());
+
     printf("dual_depth_peeling - sample comparing multiple order independent transparency techniques\n");
     printf("  Commands:\n");
     printf("     A/D       - Change uniform opacity\n");

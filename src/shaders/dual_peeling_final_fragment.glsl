@@ -9,7 +9,7 @@
 
 #version 330 core
 
-uniform sampler2DRect DepthBlenderTex;
+//uniform sampler2DRect DepthBlenderTex;
 uniform sampler2DRect FrontBlenderTex;
 uniform sampler2DRect BackBlenderTex;
 
