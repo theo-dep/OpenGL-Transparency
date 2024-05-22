@@ -18,6 +18,7 @@
 #include <nvShaderUtils.h>
 #include <nvSDKPath.h>
 #include "GLSLProgramObject.h"
+#include "Mesh.h"
 #include "OSD.h"
 
 #include <GL/glew.h>
@@ -39,6 +40,7 @@
 #include <array>
 #include <memory>
 #include <chrono>
+#include <unordered_map>
 
 #define FOVY 30.0f
 #define ZNEAR 0.0001f
@@ -50,17 +52,11 @@ int g_numPasses = 4;
 int g_imageWidth = 1024;
 int g_imageHeight = 768;
 
-struct Vertex {
-    glm::vec3 Position;
-    glm::vec3 Normal;
-};
-
 const aiScene *g_scene;
 const aiMesh *g_model;
-GLuint g_vboId;
-GLuint g_eboId;
+GLuint g_vboId, g_eboId, g_vaoId;
+GLuint g_sortedVboId, g_sortedEboId, g_sortedVaoId;
 unsigned int g_modelIndexCount;
-GLuint g_vaoId;
 
 bool g_useOQ = true;
 GLuint g_queryId;
@@ -298,6 +294,55 @@ void DeleteAccumulationRenderTargets()
     CHECK_GL_ERRORS;
 }
 
+// Function to sort triangles and reorganize vertex data in ascending order
+//--------------------------------------------------------------------------
+void SortAndReorganizeTriangles(std::vector<unsigned int>& indices, std::vector<Vertex>& vertices) {
+    if (indices.size() % 3 != 0) {
+        std::cerr << "The list size must be a multiple of 3." << std::endl;
+        return;
+    }
+
+    // Calculate average distances and sort triangles
+    struct Triangle {
+        float averageDistance;
+        std::array<unsigned int, 3> indices;
+    };
+
+    std::vector<Triangle> triangles;
+    for (size_t i = 0; i < indices.size(); i += 3) {
+        glm::vec3 p1 = vertices[indices[i]].Position;
+        glm::vec3 p2 = vertices[indices[i+1]].Position;
+        glm::vec3 p3 = vertices[indices[i+2]].Position;
+        float avgDist = (glm::length(p1) + glm::length(p2) + glm::length(p3)) / 3.0f;
+        triangles.push_back({ avgDist, { indices[i], indices[i+1], indices[i+2] }});
+    }
+
+    // Sort triangles by average distance in ascending order
+    std::sort(triangles.begin(), triangles.end(), [](const Triangle& a, const Triangle& b) {
+        return a.averageDistance < b.averageDistance;
+    });
+
+    // Reorganize indices and vertices
+    std::vector<Vertex> newVertices;
+    std::vector<unsigned int> newIndices;
+    std::unordered_map<unsigned int, unsigned int> indexMap;
+
+    for (const auto& triangle : triangles) {
+        for (int i = 0; i < 3; ++i) {
+            unsigned int oldIndex = triangle.indices[i];
+            if (indexMap.find(oldIndex) == indexMap.end()) {
+                indexMap[oldIndex] = newVertices.size();
+                newVertices.push_back(vertices[oldIndex]);
+            }
+            newIndices.push_back(indexMap[oldIndex]);
+        }
+    }
+
+    // Replace original lists with sorted lists
+    vertices = std::move(newVertices);
+    indices = std::move(newIndices);
+}
+
 //--------------------------------------------------------------------------
 void LoadModel(const char *model_filename)
 {
@@ -333,7 +378,7 @@ void LoadModel(const char *model_filename)
     printf("%d triangles\n", g_model->mNumFaces);
 
     std::vector<Vertex> vertices;
-    std::vector<unsigned int> indices;
+    vertices.reserve(g_model->mNumVertices);
 
     for (unsigned int i = 0; i < g_model->mNumVertices; ++i) {
         Vertex vertex;
@@ -351,12 +396,17 @@ void LoadModel(const char *model_filename)
         vertices.push_back(vertex);
     }
 
+    std::vector<unsigned int> indices;
+    indices.reserve(g_model->mNumFaces * 3);
+
     for (unsigned int i = 0; i < g_model->mNumFaces; ++i) {
         const aiFace &face = g_model->mFaces[i];
-        for (unsigned int j = 0; j < face.mNumIndices; j++) {
+        for (unsigned int j = 0; j < 3 && j < face.mNumIndices; j++) {
             indices.push_back(face.mIndices[j]);
         }
     }
+
+    g_modelIndexCount = indices.size();
 
     glGenBuffers(1, &g_vboId);
     glGenBuffers(1, &g_eboId);
@@ -364,18 +414,16 @@ void LoadModel(const char *model_filename)
 
     glBindVertexArray(g_vaoId);
 
-    glBindBuffer(GL_ARRAY_BUFFER, g_vboId);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), &vertices[0], GL_STATIC_DRAW);
+    CreateBufferData(g_vboId, g_eboId, vertices, indices);
 
-    g_modelIndexCount = indices.size();
+    glGenBuffers(1, &g_sortedVboId);
+    glGenBuffers(1, &g_sortedEboId);
+    glGenVertexArrays(1, &g_sortedVaoId);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_eboId);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+    glBindVertexArray(g_sortedVaoId);
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLubyte*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLubyte*)offsetof(Vertex, Normal));
+    SortAndReorganizeTriangles(indices, vertices);
+    CreateBufferData(g_sortedVboId, g_sortedEboId, vertices, indices);
 
     const aiAABB &aabb = g_model->mAABB;
     const glm::vec3 modelMin(aabb.mMin.x, aabb.mMin.y, aabb.mMin.z);
@@ -389,9 +437,9 @@ void LoadModel(const char *model_filename)
 }
 
 //--------------------------------------------------------------------------
-void DrawModel()
+void DrawModel(bool sorted = false)
 {
-    glBindVertexArray(g_vaoId);
+    glBindVertexArray(sorted ? g_sortedVaoId : g_vaoId);
     glDrawElements(GL_TRIANGLES, g_modelIndexCount, GL_UNSIGNED_INT, 0);
 
     g_numGeoPasses++;
@@ -557,7 +605,7 @@ void RenderNormalBlending()
     glClearColor(g_backgroundColor[0], g_backgroundColor[1], g_backgroundColor[2], 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
 
     glEnable(GL_BLEND);
     glBlendEquation(GL_FUNC_ADD);
@@ -568,7 +616,7 @@ void RenderNormalBlending()
     g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shader3d.setUniform("Alpha", g_opacity);
-    DrawModel();
+    DrawModel(true);
 
     glDisable(GL_BLEND);
 
