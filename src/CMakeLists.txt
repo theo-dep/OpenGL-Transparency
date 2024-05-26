@@ -9,13 +9,21 @@ cmrc_add_resource_library(shaders-resources
     ${SHADERS}
 )
 
-add_executable(${TARGET}
-    BSP.h BSP.cpp
+set(SOURCES
     GLSLProgramObject.h GLSLProgramObject.cpp
     Mesh.h Mesh.cpp
     OSD.h OSD.cpp
     opengl-transparency.cpp
 )
+
+if(BuildBSP)
+    add_definitions(-DWITH_BSP)
+    list(APPEND SOURCES
+        BSP.h BSP.cpp
+    )
+endif()
+
+add_executable(${TARGET} ${SOURCES})
 
 target_link_libraries(${TARGET} PRIVATE
     $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>

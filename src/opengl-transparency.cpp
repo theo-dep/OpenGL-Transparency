@@ -18,7 +18,9 @@
 #include "GLSLProgramObject.h"
 #include "Mesh.h"
 #include "OSD.h"
+#ifdef WITH_BSP
 #include "BSP.h"
+#endif
 
 #include <GL/glew.h>
 #include <GL/freeglut.h>
@@ -119,7 +121,9 @@ GLuint g_frontColorBlenderFboId;
 GLuint g_accumulationTexId[2];
 GLuint g_accumulationFboId;
 
-bsp_tree g_bspTree;
+#ifdef WITH_BSP
+bsp::Node* g_bspRootTree;
+#endif
 
 GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
                            GL_COLOR_ATTACHMENT1,
@@ -294,12 +298,13 @@ void DeleteAccumulationRenderTargets()
 //--------------------------------------------------------------------------
 void InitBSP()
 {
+#ifdef WITH_BSP
     printf("building BSP...\n");
 
-    std::vector<bsp_tree::polygon> polygons(g_model->mNumFaces);
+    std::vector<bsp::Polygon> polygons(g_model->mNumFaces);
     for (unsigned int i = 0; i < g_model->mNumFaces; ++i) {
         const aiFace &face = g_model->mFaces[i];
-        for (unsigned int j = 0; j < 3 || j < face.mNumIndices; j++) {
+        for (unsigned int j = 0; j < 3 && j < face.mNumIndices; j++) {
             Vertex vertex;
             glm::vec3 vector;
             vector.x = g_model->mVertices[face.mIndices[j]].x;
@@ -312,20 +317,23 @@ void InitBSP()
             vector.z = g_model->mNormals[face.mIndices[j]].z;
             vertex.Normal = vector;
 
-            polygons[i].v[j] = vertex;
+            polygons[i][j] = vertex;
         }
     }
 
-    g_bspTree.construct(polygons);
+    g_bspRootTree = bsp::Construct(polygons);
 
-    printf("%d bsp nodes\n", g_bspTree.nodes());
-    printf("%d bsp fragments from %ld polygons\n", g_bspTree.fragments(), polygons.size());
+    printf("%ld bsp nodes\n", bsp::Nodes(g_bspRootTree));
+    printf("%ld bsp fragments from %ld polygons\n", bsp::Fragments(g_bspRootTree), polygons.size());
+#endif
 }
 
 //--------------------------------------------------------------------------
 void DeleteBSP()
 {
-    g_bspTree.destroy();
+#ifdef WITH_BSP
+    bsp::Destroy(g_bspRootTree);
+#endif
 }
 
 // Function to sort triangles and reorganize vertex data in ascending order
@@ -381,9 +389,8 @@ void SortAndReorganizeTriangles(std::vector<unsigned int>& indices, std::vector<
 void LoadModel()
 {
     printf("loading OBJ...\n");
-    const std::string model_filename = std::filesystem::canonical("models/dragon.obj").string();
-    Assimp::Importer importer;
-    g_scene = importer.ReadFile(model_filename,
+    const std::string model_filename = std::filesystem::canonical("models/mesh.obj").string();
+    g_scene = g_importer.ReadFile(model_filename,
         aiProcess_CalcTangentSpace       |
         aiProcess_Triangulate            |
         aiProcess_JoinIdenticalVertices  |
@@ -990,7 +997,8 @@ void RenderBSP()
     glClearColor(g_backgroundColor[0], g_backgroundColor[1], g_backgroundColor[2], 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glDisable(GL_DEPTH_TEST);
+#ifdef WITH_BSP
+    glEnable(GL_DEPTH_TEST);
 
     glEnable(GL_BLEND);
     glBlendEquation(GL_FUNC_ADD);
@@ -1003,11 +1011,12 @@ void RenderBSP()
     g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shader3d.setUniform("Alpha", g_opacity);
-    g_bspTree.render(modelViewProjectionMatrix);
+    bsp::Render(g_bspRootTree, modelViewProjectionMatrix);
 
     g_numGeoPasses++;
 
     glDisable(GL_BLEND);
+#endif
 
     CHECK_GL_ERRORS;
 }
