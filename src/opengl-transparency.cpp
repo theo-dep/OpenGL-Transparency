@@ -1293,7 +1293,7 @@ int main(int argc, char *argv[])
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH | GLUT_MULTISAMPLE);
     glutInitWindowSize(g_imageWidth, g_imageHeight);
 
-    glutInitContextVersion(3, 3);
+    glutInitContextVersion(4, 4);
     glutInitContextProfile(GLUT_CORE_PROFILE);
 
     const int windowHandle = glutCreateWindow("Order Independent Transparency");

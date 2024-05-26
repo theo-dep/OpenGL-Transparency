@@ -18,6 +18,8 @@ namespace bsp {
 
 GLuint g_bspVboId = 0;
 GLuint g_bspVaoId = 0;
+GLsync g_syncBuffer = 0;
+Vertex* g_vertexBufferData = nullptr;
 
 float g_minDistance = HUGE_VALF;
 
@@ -84,7 +86,15 @@ Node* Construct(const std::vector<Polygon> &polygons) {
     glBindVertexArray(g_bspVaoId);
 
     glBindBuffer(GL_ARRAY_BUFFER, g_bspVboId);
-    glBufferData(GL_ARRAY_BUFFER, 3 * Fragments(root) * sizeof(Vertex), nullptr, GL_STREAM_DRAW);
+    GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+    GLsizeiptr bufferSize =  3 * Fragments(root) * sizeof(Vertex);
+    glBufferStorage(GL_ARRAY_BUFFER, bufferSize, 0, flags);
+    g_vertexBufferData = (Vertex*)glMapBufferRange(GL_ARRAY_BUFFER, 0, bufferSize, flags);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLubyte*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLubyte*)offsetof(Vertex, Normal));
 
     return root;
 }
@@ -178,6 +188,8 @@ void Destroy(Node *root) {
     glDeleteBuffers(1, &g_bspVboId);
     glDeleteVertexArrays(1, &g_bspVaoId);
 
+    glDeleteSync(g_syncBuffer);
+
     DestroyRec(root);
 }
 
@@ -197,26 +209,31 @@ inline void DestroyRec(Node *n) {
  * @param modelViewProjectionMatrix
  * @param vertices list of polygons back to front
  */
-inline void RenderRec(const Node *n, const glm::mat4& modelViewProjectionMatrix, std::vector<Vertex> &vertices);
+inline void RenderRec(const Node *n, const glm::mat4& modelViewProjectionMatrix, std::size_t& bufferIndex);
 
 void Render(const Node *root, const glm::mat4& modelViewProjectionMatrix) {
-    std::vector<Vertex> vertices;
-    RenderRec(root, modelViewProjectionMatrix, vertices);
+    // waiting for the buffer
+    if (g_syncBuffer)
+    {
+        GLenum waitReturn = GL_UNSIGNALED;
+        while (waitReturn != GL_ALREADY_SIGNALED && waitReturn != GL_CONDITION_SATISFIED)
+        {
+            waitReturn = glClientWaitSync(g_syncBuffer, GL_SYNC_FLUSH_COMMANDS_BIT, 1);
+        }
+    }
+
+    std::size_t bufferIndex = 0;
+    RenderRec(root, modelViewProjectionMatrix, bufferIndex);
 
     glBindVertexArray(g_bspVaoId);
+    glDrawArrays(GL_TRIANGLES, 0, bufferIndex);
 
-    glBindBuffer(GL_ARRAY_BUFFER, g_bspVboId);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size() * sizeof(Vertex), &vertices[0]);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLubyte*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLubyte*)offsetof(Vertex, Normal));
-
-    glDrawArrays(GL_TRIANGLES, 0, vertices.size());
+    // lock the buffer:
+    glDeleteSync(g_syncBuffer);
+    g_syncBuffer = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
-inline void RenderRec(const Node *n, const glm::mat4& modelViewProjectionMatrix, std::vector<Vertex> &vertices) {
+inline void RenderRec(const Node *n, const glm::mat4& modelViewProjectionMatrix, std::size_t& bufferIndex) {
     if (n == nullptr)
     {
         return;
@@ -240,13 +257,13 @@ inline void RenderRec(const Node *n, const glm::mat4& modelViewProjectionMatrix,
 
         if (side == -1)
         {
-            RenderRec(n->r, modelViewProjectionMatrix, vertices);
-            RenderRec(n->l, modelViewProjectionMatrix, vertices);
+            RenderRec(n->r, modelViewProjectionMatrix, bufferIndex);
+            RenderRec(n->l, modelViewProjectionMatrix, bufferIndex);
         }
         else
         {
-            RenderRec(n->l, modelViewProjectionMatrix, vertices);
-            RenderRec(n->r, modelViewProjectionMatrix, vertices);
+            RenderRec(n->l, modelViewProjectionMatrix, bufferIndex);
+            RenderRec(n->r, modelViewProjectionMatrix, bufferIndex);
         }
     }
     else //if (n->l == nullptr || n->r == nullptr)
@@ -256,7 +273,7 @@ inline void RenderRec(const Node *n, const glm::mat4& modelViewProjectionMatrix,
         {
             for (const Vertex& vertex : g_polygons[polygon])
             {
-                vertices.push_back(vertex);
+                g_vertexBufferData[bufferIndex++] = vertex;
             }
         }
     }
