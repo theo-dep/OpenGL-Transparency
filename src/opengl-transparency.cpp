@@ -1004,14 +1004,12 @@ void RenderBSP()
     glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    const glm::mat4 modelViewProjectionMatrix = g_projetionMatrix * g_modelViewMatrix;
-
     g_shader3d.bind();
-    g_shader3d.setUniform("ModelViewProjectionMatrix", modelViewProjectionMatrix);
+    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
     g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shader3d.setUniform("Alpha", g_opacity);
-    bsp::Render(g_bspRootTree, modelViewProjectionMatrix);
+    bsp::Render(g_bspRootTree, g_modelViewMatrix);
 
     g_numGeoPasses++;
 

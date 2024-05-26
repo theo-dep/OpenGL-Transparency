@@ -206,12 +206,12 @@ inline void DestroyRec(Node *n) {
 /**
  * Render recursively all tree nodes. Including <b>n</b>.
  * @param n tree root node.
- * @param modelViewProjectionMatrix
+ * @param cameraPosition The current position of the player/viewpoint
  * @param vertices list of polygons back to front
  */
-inline void RenderRec(const Node *n, const glm::mat4& modelViewProjectionMatrix, std::size_t& bufferIndex);
+inline void RenderRec(const Node *n, const glm::vec3& cameraPosition, std::size_t& bufferIndex);
 
-void Render(const Node *root, const glm::mat4& modelViewProjectionMatrix) {
+void Render(const Node *root, const glm::mat4& viewMatrix) {
     // waiting for the buffer
     if (g_syncBuffer)
     {
@@ -222,8 +222,11 @@ void Render(const Node *root, const glm::mat4& modelViewProjectionMatrix) {
         }
     }
 
+    glm::mat4 inverseViewMatrix = glm::inverse(viewMatrix);
+    glm::vec3 cameraPosition = glm::xyz(glm::column(inverseViewMatrix, 3));
+
     std::size_t bufferIndex = 0;
-    RenderRec(root, modelViewProjectionMatrix, bufferIndex);
+    RenderRec(root, cameraPosition, bufferIndex);
 
     glBindVertexArray(g_bspVaoId);
     glDrawArrays(GL_TRIANGLES, 0, bufferIndex);
@@ -233,7 +236,7 @@ void Render(const Node *root, const glm::mat4& modelViewProjectionMatrix) {
     g_syncBuffer = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
-inline void RenderRec(const Node *n, const glm::mat4& modelViewProjectionMatrix, std::size_t& bufferIndex) {
+inline void RenderRec(const Node *n, const glm::vec3& cameraPosition, std::size_t& bufferIndex) {
     if (n == nullptr)
     {
         return;
@@ -249,21 +252,16 @@ inline void RenderRec(const Node *n, const glm::mat4& modelViewProjectionMatrix,
         glm::vec3 edge1 = p2 - p1;
         glm::vec3 edge2 = p3 - p1;
         glm::vec3 planeNormal = glm::cross(edge1, edge2);
-        glm::vec3 temp = p1;
-
-        //The current position of the player/viewpoint
-        glm::vec3 position = glm::xyz(glm::column(modelViewProjectionMatrix, 3));
-        int side = ClassifyPoint(position, temp, planeNormal);
-
+        int side = ClassifyPoint(cameraPosition, p1, planeNormal);
         if (side == -1)
         {
-            RenderRec(n->r, modelViewProjectionMatrix, bufferIndex);
-            RenderRec(n->l, modelViewProjectionMatrix, bufferIndex);
+            RenderRec(n->r, cameraPosition, bufferIndex);
+            RenderRec(n->l, cameraPosition, bufferIndex);
         }
         else
         {
-            RenderRec(n->l, modelViewProjectionMatrix, bufferIndex);
-            RenderRec(n->r, modelViewProjectionMatrix, bufferIndex);
+            RenderRec(n->l, cameraPosition, bufferIndex);
+            RenderRec(n->r, cameraPosition, bufferIndex);
         }
     }
     else //if (n->l == nullptr || n->r == nullptr)

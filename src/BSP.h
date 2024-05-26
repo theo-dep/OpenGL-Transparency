@@ -38,7 +38,7 @@ void Destroy(Node *root);
 /**
  * Render the BSP tree using the position
  */
-void Render(const Node *root, const glm::mat4& modelViewProjectionMatrix);
+void Render(const Node *root, const glm::mat4& viewMatrix);
 /**
  * Return the number of nodes which compose the BSP tree.
  * @return number of nodes.
