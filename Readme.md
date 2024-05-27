@@ -33,5 +33,6 @@ Dual Depth Peeling (Bavoil and Myers 2008).
 - [GLM](https://github.com/g-truc/glm): To manage OpenGL geometries
 - [Open Asset Import Library](https://github.com/assimp/assimp): To load the 3D NVidia dragon mesh
 - [FreeType](https://github.com/freetype/freetype): To create text glyph to render in OpenGL
+- [CMakeRC](https://github.com/vector-of-bool/cmrc): To embed shader resources
 
 All dependencies can be install by [vcpkg](https://github.com/microsoft/vcpkg) with `vcpkg install` or during the CMake configuration by setting `VCPKG_ROOT=[path/to/vcpkg]` and `PATH="$PATH:$VCPKG_ROOT"` environment variable. See https://learn.microsoft.com/fr-fr/vcpkg/get_started/get-started.
