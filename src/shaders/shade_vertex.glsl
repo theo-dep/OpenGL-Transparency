@@ -19,9 +19,12 @@ out vec3 TexCoord;
 
 void ShadeVertex()
 {
+    vec3 worldPosition = normalize((ModelViewMatrix * vec4(VertexPosition, 1)).xyz);
 	vec3 normal = normalize(NormalMatrix * VertexNormal);
-    vec3 lightDir = normalize((ModelViewMatrix * vec4(VertexPosition, 1)).xyz);
+
+    const vec3 lightPosition = vec3(0, 0, 1);
+    vec3 lightDir = normalize(lightPosition - worldPosition);
 
     float diffuse = abs(dot(normal, lightDir));
-    TexCoord = vec3(VertexPosition.xy, (0.42 + 0.58 * diffuse));
+    TexCoord = vec3(VertexPosition.xy, diffuse);
 }

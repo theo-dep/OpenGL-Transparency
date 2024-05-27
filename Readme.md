@@ -6,10 +6,18 @@ Initial algorithm: Order Independent
 Transparency with
 Dual Depth Peeling (Bavoil and Myers 2008).
 
-<p align="center">
-  <img width="256" height="256" src="doc/dual_depth_peeling_medium.png">
-  <img width="256" height="256" src="doc/dual_depth_peeling_gl3_medium.png">
-</p>
+<div style="display: flex; flex-direction: row; justify-content: space-around;">
+  <div style="text-align: center;">
+    <img src="doc/dual_depth_peeling_medium.png"
+         alt="nvidia dragon opengl2 dual depth peeling">
+    <p>OpenGL 2</p>
+  </div>
+  <div style="text-align: center;">
+    <img src="doc/dual_depth_peeling_gl3_medium.png"
+         alt="nvidia dragon opengl3 and more dual depth peeling">
+    <p>OpenGL 3+</p>
+  </div>
+</div>
 
 ## Links
 
