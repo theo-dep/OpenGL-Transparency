@@ -95,8 +95,8 @@ int g_oldX, g_oldY;
 int g_newX, g_newY;
 float g_bbScale = 1.0;
 glm::vec3 g_bbTrans(0.0, 0.0, 0.0);
-glm::vec2 g_rot(15.0, 45.0);
-glm::vec3 g_pos(0.0, 0.0, 1.0);
+glm::vec2 g_rot(0.0, 45.0);
+glm::vec3 g_pos(0.0, 0.0, 2.0);
 
 glm::mat4 g_projetionMatrix;
 glm::mat4 g_modelViewMatrix;
@@ -1025,7 +1025,7 @@ void displayFunc()
     static std::chrono::steady_clock::time_point s_t0 = std::chrono::steady_clock::now();
     g_numGeoPasses = 0;
 
-    g_modelViewMatrix = glm::lookAt(g_pos, glm::vec3(g_pos.x, g_pos.y, 0), glm::vec3(0, -1, 0));
+    g_modelViewMatrix = glm::lookAt(g_pos, glm::vec3(g_pos.x, g_pos.y, 0), glm::vec3(0, 1, 0));
     g_modelViewMatrix = glm::rotate(g_modelViewMatrix, glm::radians(g_rot.x), glm::vec3(1, 0, 0));
     g_modelViewMatrix = glm::rotate(g_modelViewMatrix, glm::radians(g_rot.y), glm::vec3(0, 1, 0));
     g_modelViewMatrix = glm::translate(g_modelViewMatrix, g_bbTrans);
@@ -1091,7 +1091,7 @@ void reshapeFunc(int w, int h)
         InitAccumulationRenderTargets();
     }
 
-    g_projetionMatrix = glm::perspective(FOVY, (float)g_imageWidth / (float)g_imageHeight, ZNEAR, ZFAR);
+    g_projetionMatrix = glm::perspective(glm::radians(FOVY), (float)g_imageWidth / (float)g_imageHeight, ZNEAR, ZFAR);
 
     glViewport(0, 0, g_imageWidth, g_imageHeight);
 

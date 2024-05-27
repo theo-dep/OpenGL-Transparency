@@ -6,10 +6,18 @@ Initial algorithm: Order Independent
 Transparency with
 Dual Depth Peeling (Bavoil and Myers 2008).
 
-<p align="center">
-  <img width="256" height="256" src="doc/dual_depth_peeling_medium.png">
-  <img width="256" height="238" src="doc/dual_depth_peeling_gl3_medium.png">
-</p>
+<div style="display: flex; flex-direction: row; justify-content: space-around;">
+  <div style="text-align: center;">
+    <img src="doc/dual_depth_peeling_medium.png"
+         alt="nvidia dragon opengl2 dual depth peeling">
+    <p>OpenGL 2</p>
+  </div>
+  <div style="text-align: center;">
+    <img src="doc/dual_depth_peeling_gl3_medium.png"
+         alt="nvidia dragon opengl3 and more dual depth peeling">
+    <p>OpenGL 3+</p>
+  </div>
+</div>
 
 ## Links
 
@@ -25,5 +33,6 @@ Dual Depth Peeling (Bavoil and Myers 2008).
 - [GLM](https://github.com/g-truc/glm): To manage OpenGL geometries
 - [Open Asset Import Library](https://github.com/assimp/assimp): To load the 3D NVidia dragon mesh
 - [FreeType](https://github.com/freetype/freetype): To create text glyph to render in OpenGL
+- [CMakeRC](https://github.com/vector-of-bool/cmrc): To embed shader resources
 
 All dependencies can be install by [vcpkg](https://github.com/microsoft/vcpkg) with `vcpkg install` or during the CMake configuration by setting `VCPKG_ROOT=[path/to/vcpkg]` and `PATH="$PATH:$VCPKG_ROOT"` environment variable. See https://learn.microsoft.com/fr-fr/vcpkg/get_started/get-started.
