@@ -5,6 +5,8 @@ project(opengl-transparency VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(BuildBSP "If set, build a transparency rendering with a Binary Spatial Partionning tree sorting" OFF)
+
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(FreeGLUT CONFIG REQUIRED)

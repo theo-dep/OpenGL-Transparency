@@ -18,6 +18,9 @@
 #include "GLSLProgramObject.h"
 #include "Mesh.h"
 #include "OSD.h"
+#ifdef WITH_BSP
+#include "BSP.h"
+#endif
 
 #include <GL/glew.h>
 #include <GL/freeglut.h>
@@ -51,6 +54,7 @@ int g_numPasses = 4;
 int g_imageWidth = 1024;
 int g_imageHeight = 768;
 
+Assimp::Importer g_importer;
 const aiScene *g_scene;
 const aiMesh *g_model;
 GLuint g_vboId, g_eboId, g_vaoId;
@@ -116,6 +120,10 @@ GLuint g_frontColorBlenderFboId;
 
 GLuint g_accumulationTexId[2];
 GLuint g_accumulationFboId;
+
+#ifdef WITH_BSP
+bsp::Node* g_bspRootTree;
+#endif
 
 GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
                            GL_COLOR_ATTACHMENT1,
@@ -287,6 +295,47 @@ void DeleteAccumulationRenderTargets()
     CHECK_GL_ERRORS;
 }
 
+//--------------------------------------------------------------------------
+void InitBSP()
+{
+#ifdef WITH_BSP
+    printf("building BSP...\n");
+
+    std::vector<bsp::Polygon> polygons(g_model->mNumFaces);
+    for (unsigned int i = 0; i < g_model->mNumFaces; ++i) {
+        const aiFace &face = g_model->mFaces[i];
+        for (unsigned int j = 0; j < 3 && j < face.mNumIndices; j++) {
+            Vertex vertex;
+            glm::vec3 vector;
+            vector.x = g_model->mVertices[face.mIndices[j]].x;
+            vector.y = g_model->mVertices[face.mIndices[j]].y;
+            vector.z = g_model->mVertices[face.mIndices[j]].z;
+            vertex.Position = vector;
+
+            vector.x = g_model->mNormals[face.mIndices[j]].x;
+            vector.y = g_model->mNormals[face.mIndices[j]].y;
+            vector.z = g_model->mNormals[face.mIndices[j]].z;
+            vertex.Normal = vector;
+
+            polygons[i][j] = vertex;
+        }
+    }
+
+    g_bspRootTree = bsp::Construct(polygons);
+
+    printf("%ld bsp nodes\n", bsp::Nodes(g_bspRootTree));
+    printf("%ld bsp fragments from %ld polygons\n", bsp::Fragments(g_bspRootTree), polygons.size());
+#endif
+}
+
+//--------------------------------------------------------------------------
+void DeleteBSP()
+{
+#ifdef WITH_BSP
+    bsp::Destroy(g_bspRootTree);
+#endif
+}
+
 // Function to sort triangles and reorganize vertex data in ascending order
 //--------------------------------------------------------------------------
 void SortAndReorganizeTriangles(std::vector<unsigned int>& indices, std::vector<Vertex>& vertices) {
@@ -340,9 +389,8 @@ void SortAndReorganizeTriangles(std::vector<unsigned int>& indices, std::vector<
 void LoadModel()
 {
     printf("loading OBJ...\n");
-    const std::string model_filename = std::filesystem::canonical("models/dragon.obj").string();
-    Assimp::Importer importer;
-    g_scene = importer.ReadFile(model_filename,
+    const std::string model_filename = std::filesystem::canonical("models/mesh.obj").string();
+    g_scene = g_importer.ReadFile(model_filename,
         aiProcess_CalcTangentSpace       |
         aiProcess_Triangulate            |
         aiProcess_JoinIdenticalVertices  |
@@ -565,6 +613,8 @@ void InitGL()
 
     BuildShaders();
     LoadModel();
+    InitBSP(); // must be after LoadModel
+
     InitFullScreenQuad();
 
     InitText();
@@ -583,6 +633,7 @@ void DeleteGL()
     DeleteDualPeelingRenderTargets();
     DeleteFrontPeelingRenderTargets();
     DeleteAccumulationRenderTargets();
+    DeleteBSP();
 
     DestroyShaders();
     DeleteModel();
@@ -941,6 +992,34 @@ void RenderWeightedSum()
 }
 
 //--------------------------------------------------------------------------
+void RenderBSP()
+{
+    glClearColor(g_backgroundColor[0], g_backgroundColor[1], g_backgroundColor[2], 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+#ifdef WITH_BSP
+    glEnable(GL_DEPTH_TEST);
+
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    g_shader3d.bind();
+    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
+    g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
+    g_shader3d.setUniform("Alpha", g_opacity);
+    bsp::Render(g_bspRootTree, g_modelViewMatrix);
+
+    g_numGeoPasses++;
+
+    glDisable(GL_BLEND);
+#endif
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
 void displayFunc()
 {
     static std::chrono::steady_clock::time_point s_t0 = std::chrono::steady_clock::now();
@@ -967,6 +1046,9 @@ void displayFunc()
             break;
         case WEIGHTED_SUM_MODE:
             RenderWeightedSum();
+            break;
+        case BSP_MODE:
+            RenderBSP();
             break;
     }
 
@@ -1137,6 +1219,9 @@ void keyboardFunc(unsigned char key, int x, int y)
         case '4':
             g_mode = WEIGHTED_SUM_MODE;
             break;
+        case '5':
+            g_mode = BSP_MODE;
+            break;
         case 'a':
             g_opacity -= 0.05f;
             g_opacity = std::max(g_opacity, 0.0f);
@@ -1169,6 +1254,7 @@ void InitMenus()
         glutAddMenuEntry("'2' - Front peeling mode", '2');
         glutAddMenuEntry("'3' - Weighted average mode", '3');
         glutAddMenuEntry("'4' - Weighted sum mode", '4');
+        glutAddMenuEntry("'5' - BSP mode", '5');
         glutAddMenuEntry("'A' - dec uniform opacity", 'A');
         glutAddMenuEntry("'D' - inc uniform opacity", 'D');
         glutAddMenuEntry("'R' - Reload shaders", 'R');
@@ -1194,6 +1280,7 @@ int main(int argc, char *argv[])
     printf("     2         - Front to back peeling mode\n");
     printf("     3         - Weighted average mode\n");
     printf("     4         - Weighted sum mode\n");
+    printf("     5         - BSP mode\n");
     printf("     R         - Reload all shaders\n");
     printf("     B         - Change background color\n");
     printf("     Q         - Toggle occlusion queries\n");
@@ -1204,7 +1291,7 @@ int main(int argc, char *argv[])
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH | GLUT_MULTISAMPLE);
     glutInitWindowSize(g_imageWidth, g_imageHeight);
 
-    glutInitContextVersion(3, 3);
+    glutInitContextVersion(4, 4);
     glutInitContextProfile(GLUT_CORE_PROFILE);
 
     const int windowHandle = glutCreateWindow("Order Independent Transparency");
