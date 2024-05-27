@@ -8,7 +8,7 @@ Dual Depth Peeling (Bavoil and Myers 2008).
 
 <p align="center">
   <img width="256" height="256" src="doc/dual_depth_peeling_medium.png">
-  <img width="256" height="238" src="doc/dual_depth_peeling_gl3_medium.png">
+  <img width="256" height="256" src="doc/dual_depth_peeling_gl3_medium.png">
 </p>
 
 ## Links

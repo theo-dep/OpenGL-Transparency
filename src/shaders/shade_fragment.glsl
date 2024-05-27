@@ -18,7 +18,6 @@ uniform float Alpha;
 
 vec4 ShadeFragment()
 {
-#if 1
 	float xWorldPos = TexCoord.x;
 	float yWorldPos = TexCoord.y;
 	float diffuse = TexCoord.z;
@@ -26,16 +25,9 @@ vec4 ShadeFragment()
 	vec4 color;
 	float i = floor(xWorldPos * COLOR_FREQ);
 	float j = floor(yWorldPos * ALPHA_FREQ);
-	color.rgb = (mod(i, 2.0) == 0.0) ? vec3(.4,.85,.0) : vec3(1.0);
-	//color.a = (fmod(j, 2.0) == 0) ? Alpha : 0.2;
+	color.rgb = (mod(i, 2.0) == 0.0) ? vec3(.4, .85, .0) : vec3(1.0);
 	color.a = Alpha;
 
 	color.rgb *= diffuse;
 	return color;
-#else
-	vec4 color;
-	color.rgb = vec3(.4,.85,.0);
-	color.a = Alpha;
-	return color;
-#endif
 }
