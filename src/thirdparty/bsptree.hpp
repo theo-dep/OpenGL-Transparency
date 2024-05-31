@@ -7,6 +7,10 @@
 #include <cmath>
 #include <array>
 
+#include <algorithm>
+#include <execution>
+#include <ranges>
+
 namespace bsp {
 
 /// specialize this template for your point type
@@ -29,12 +33,13 @@ template <class V> struct vertex_traits;
 /// default version that works for normal std containers with random access (e.g. vector und deque)
 template<class V> struct container_traits
 {
+  typedef std::size_t size_type;
   typedef typename V::value_type value_type;
-  static auto get(const V & v, size_t i) { return v[i]; }
+  static auto get(const V & v, size_type i) { return v[i]; }
   template <class coord_type>
-  static size_t appendInterpolate(V & v, const value_type & a, const value_type & b, coord_type f)
+  static size_type appendInterpolate(V & v, const value_type & a, const value_type & b, coord_type f)
   {
-    size_t res = v.size();
+    size_type res = v.size();
     v.emplace_back(vertex_traits<value_type>::getInterpolatedVertex(a, b, f));
     return res;
   }
@@ -46,13 +51,17 @@ template<class V> struct container_traits
   {
     v.insert(v.end(), v2.begin(), v2.end());
   }
-  static size_t getSize(const V & v) noexcept
+  static size_type getSize(const V & v) noexcept
   {
     return v.size();
   }
-  static void resize(V & v, size_t i)
+  static void resize(V & v, size_type i)
   {
     v.resize(i);
+  }
+  static void reserve(V & v, size_type i)
+  {
+    v.reserve(i);
   }
 };
 
@@ -74,12 +83,13 @@ template<class V> struct container_traits
 /// \tparam E exponent of the epsilon value used to find out if a vertex is on the plane of a triangle.
 ///         Specify according to the scale of your object, E=0 mans 1, E=1 0.1, E=2 0.01 and so on, if
 ///         the vertex is less than that amount away from a plane it will be considered on the plane
-template <class C, class I, int E = 4>
+template <class C, class I, container_traits<C>::size_type E = 5>
 class BspTree
 {
   protected:
 
     // the vertex type and the type for indexing the vertex container
+    using size_type = typename container_traits<C>::size_type;
     using vertex_type = typename container_traits<C>::value_type;
     using index_type = typename container_traits<I>::value_type;
 
@@ -107,38 +117,52 @@ class BspTree
 
     // a function that is used to contract the numbers between -1 and 1 into one, used
     // for the categorisation of a triangles relation to the cutting plane
-    static constexpr int splitType(int a, int b, int c) noexcept
+    static constexpr size_type splitType(size_type a, size_type b, size_type c) noexcept
     {
       return (a+1)*16 + (b+1)*4 + (c+1);
     }
 
     // calculate distance of a point from a plane
-    coord_type distance(const std::tuple<point_type, coord_type> & plane, const point_type & t) const noexcept
+    static coord_type distance(const std::tuple<point_type, coord_type> & plane, const point_type & t) noexcept
     {
-      return point_traits<point_type>::dot(std::get<0>(plane), t) - std::get<1>(plane);
+      return (point_traits<point_type>::dot(std::get<0>(plane), t) - std::get<1>(plane));
     }
 
-    // the epsilon value for deciding if a point is on a plane
-    const coord_type epsilon = std::pow(0.1, E);
+    // calculate the pow number of e
+    static constexpr coord_type pow(coord_type i, size_type e) noexcept
+    {
+      if (e == 0) return 1;
+      return i * pow(i, e - 1);
+    }
 
     // calculate the sign of a number,
-    int sign(coord_type i) const noexcept
+    static size_type sign(coord_type i) noexcept
     {
+      // the epsilon value for deciding if a point is on a plane
+      constexpr coord_type epsilon = pow(0.1, E);
+
       if (i >  epsilon) return 1;
       if (i < -epsilon) return -1;
       return 0;
     }
 
+    // calculate the absolute number
+    template <typename T>
+    static constexpr T abs(T i) noexcept
+    {
+      return (i > 0 ? i : -i);
+    }
+
     // calculate relative position of a point along a line which is a
     // units from one and b units from the other
     // assumes that either a or b are not zero
-    coord_type relation(coord_type a, coord_type b) const noexcept
+    static constexpr coord_type relation(coord_type a, coord_type b) noexcept
     {
-      return std::abs(a) / ( std::abs(a) + std::abs(b) );
+      return abs(a) / (abs(a) + abs(b));
     }
 
     // calculate the plane in hessian normal form for the triangle with the indices given in the triple p
-    std::tuple<point_type, coord_type> calculatePlane(int a, int b, int c) noexcept
+    std::tuple<point_type, coord_type> calculatePlane(size_type a, size_type b, size_type c) const noexcept
     {
       auto p1 = vertex_traits<vertex_type>::getPosition(get(vertices_, a));
       auto p2 = vertex_traits<vertex_type>::getPosition(get(vertices_, b));
@@ -151,7 +175,7 @@ class BspTree
     }
 
     // append indices for a triangle to the index container
-    void append(I & v, index_type v1, index_type v2, index_type v3)
+    void append(I & v, index_type v1, index_type v2, index_type v3) const
     {
       container_traits<I>::append(v, v1);
       container_traits<I>::append(v, v2);
@@ -161,10 +185,10 @@ class BspTree
     // helper function to get element from container using the traits
     // this is used so often that it is worth it here
     template <class T>
-      auto get(const T & container, size_t i) const noexcept { return container_traits<T>::get(container, i); }
+    auto get(const T & container, size_type i) const noexcept { return container_traits<T>::get(container, i); }
 
     // get the vertex that is pointed to by the i-th index in the index container
-    vertex_type getVertIndex(size_t i, const I & indices) noexcept
+    vertex_type getVertIndex(size_type i, const I & indices) const noexcept
     {
       return get(vertices_, get(indices, i));
     }
@@ -173,17 +197,17 @@ class BspTree
     // plane of the triangle given in pivot
     // when needed triangles are split and the smaller triangles are added to the proper lists
     // return the plane
-    std::tuple<point_type, coord_type> separateTriangles(size_t pivot, const I & indices, I & behind, I & infront, I & onPlane)
+    std::tuple<point_type, coord_type> separateTriangles(size_type pivot, const I & indices, I & behind, I & infront, I & onPlane)
     {
       // get the plane of the pivot triangle
       auto plane = calculatePlane(
-          get(indices, pivot  ),
-          get(indices, pivot+1),
-          get(indices, pivot+2)
+        get(indices, pivot  ),
+        get(indices, pivot+1),
+        get(indices, pivot+2)
       );
 
       // go over all triangles and separate them
-      for (size_t i = 0; i < container_traits<I>::getSize(indices); i+=3)
+      for (size_type i = 0; i < container_traits<I>::getSize(indices); i+=3)
       {
         // calculate distance of the 3 vertices from the choosen partitioning plane
         std::array<coord_type, 3> dist
@@ -194,7 +218,7 @@ class BspTree
         };
 
         // check on which side of the plane the 3 points are
-        std::array<int, 3> side { sign(dist[0]), sign(dist[1]), sign(dist[2]) };
+        std::array<size_type, 3> side { sign(dist[0]), sign(dist[1]), sign(dist[2]) };
 
         // if necessary create intermediate points for triangle
         // edges that cross the plane
@@ -246,6 +270,7 @@ class BspTree
             break;
 
           // triangle on the dividing plane
+          default:
           case splitType( 0,  0,  0):
             append(onPlane, get(indices, i  ), get(indices, i+1), get(indices, i+2));
             break;
@@ -325,22 +350,22 @@ class BspTree
 
     // check what would happen if the plane of pivot is used as a cutting plane for the triangles in indices
     // returns the number of triangles that would end up on the plane of pivot, behind it or in front of it
-    std::tuple<int, int> evaluatePivot(int pivot, const I & indices) noexcept
+    std::tuple<size_type, size_type> evaluatePivot(size_type pivot, const I & indices) const noexcept
     {
-      int behind = 0;
-      int infront = 0;
+      size_type behind = 0;
+      size_type infront = 0;
 
       // count how many triangles would need to be cut, would lie behind and in front of the plane
       auto plane = calculatePlane(
-          get(indices, pivot  ),
-          get(indices, pivot+1),
-          get(indices, pivot+2)
+        get(indices, pivot  ),
+        get(indices, pivot+1),
+        get(indices, pivot+2)
       );
 
       // this is a simplification of the algorithm above to just count the numbers of triangles
-      for (size_t i = 0; i < container_traits<I>::getSize(indices); i+=3)
+      for (size_type i = 0; i < container_traits<I>::getSize(indices); i+=3)
       {
-        std::array<int, 3> side
+        std::array<size_type, 3> side
         {
           sign(distance(plane, vertex_traits<vertex_type>::getPosition(getVertIndex(i  , indices)))),
           sign(distance(plane, vertex_traits<vertex_type>::getPosition(getVertIndex(i+1, indices)))),
@@ -369,6 +394,7 @@ class BspTree
             infront++;
             break;
 
+          default:
           case splitType( 0,  0,  0):
             break;
 
@@ -392,8 +418,8 @@ class BspTree
           case splitType(-1,  1,  1):
           case splitType( 1, -1,  1):
           case splitType( 1,  1, -1):
-            behind ++;
-            infront+=2;
+            behind++;
+            infront += 2;
             break;
         }
       }
@@ -407,33 +433,43 @@ class BspTree
     // the lists of triangles that are behind and in front of the choosen plane
     std::unique_ptr<Node> makeTree(const I & indices)
     {
-      if (container_traits<I>::getSize(indices) > 0)
+      if (container_traits<I>::getSize(indices) > 3)
       {
         // find a good pivot element
-        std::tuple<int, int> pivot = evaluatePivot(0, indices);
-        size_t best = 0;
+
+        std::vector<std::tuple<size_type, std::tuple<size_type, size_type>>> pivots(container_traits<I>::getSize(indices) / 3);
+
+        { // parallelize all pivot evaluations
+          auto stridedIndices = std::views::iota(size_type(0), container_traits<I>::getSize(indices)) | std::views::stride(3);
+          std::transform(std::execution::par, stridedIndices.cbegin(), stridedIndices.cend(), pivots.begin(),
+            [this, &indices](size_type i) -> decltype(pivots)::value_type
+            {
+              return std::make_tuple(i, evaluatePivot(i, indices));
+            }
+          );
+        }
+
+        auto [best, bestPivot]{ pivots.back() };
+        pivots.pop_back();
 
         // the loop is done in a way that ignores indices at the end that
         // don't result in a triangle any more
-        for (size_t i = 3; i+2 < container_traits<I>::getSize(indices); i+=3)
-        {
-          auto newPivot = evaluatePivot(i, indices);
 
+        for (const auto& [i, pivot] : pivots)
+        {
           // new pivot is better, if
           // the total number of triangles is lower (less division)
           // or equal and the triangles more equally distributed between left and right
 
-          int nb = std::get<0>(newPivot);
-          int nf = std::get<1>(newPivot);
-          int ns = nb+nf;
+          const auto [nb, nf]{ pivot };
+          size_type ns = nb+nf;
 
-          int bb = std::get<0>(pivot);
-          int bf = std::get<1>(pivot);
-          int bs = bb+bf;
+          const auto [bb, bf]{ bestPivot };
+          size_type bs = bb+bf;
 
           if ((ns < bs) || ((ns == bs) && (abs(nb-nf) < abs(bb-bf))))
           {
-            pivot = newPivot;
+            bestPivot = pivot;
             best = i;
           }
         }
@@ -443,12 +479,22 @@ class BspTree
 
         // container for the triangle indices for the triangles in front and behind the plane
         I behind, infront;
+        container_traits<I>::reserve(behind, std::get<0>(bestPivot));
+        container_traits<I>::reserve(infront, std::get<1>(bestPivot));
 
         // sort the triangles into the 3 containers
         node->plane = separateTriangles(best, indices, behind, infront, node->triangles);
         node->behind = makeTree(behind);
         node->infront = makeTree(infront);
 
+        return node;
+      }
+      else if (container_traits<I>::getSize(indices) == 3)
+      {
+        // create the last node for this part of the tree
+        // special case if epsilon is too small
+        auto node = std::make_unique<Node>();
+        node->plane = separateTriangles(0, indices, node->triangles, node->triangles, node->triangles);
         return node;
       }
       else
@@ -484,17 +530,17 @@ class BspTree
 
       if (dist < 0)
       {
-          if (n->behind)
-              return isInside(p, n->behind.get());
-          else
-              return true;
+        if (n->behind)
+          return isInside(p, n->behind.get());
+        else
+          return true;
       }
       else
       {
-          if (n->infront)
-              return isInside(p, n->infront.get());
-          else
-              return false;
+        if (n->infront)
+          return isInside(p, n->infront.get());
+        else
+          return false;
       }
     }
 
@@ -502,10 +548,10 @@ class BspTree
     {
         // recalculate plane for this node with the first triangle on this plane
         n->plane = calculatePlane(
-                get(n->triangles, 0),
-                get(n->triangles, 1),
-                get(n->triangles, 2)
-                );
+          get(n->triangles, 0),
+          get(n->triangles, 1),
+          get(n->triangles, 2)
+        );
 
         // do the two subtrees
         if (n->infront) return reCalculatePlanes(n->infront.get());
@@ -545,7 +591,7 @@ class BspTree
       };
 
       // check on which side of the plane the 3 points are
-      std::array<int, 3> side { sign(dist[0]), sign(dist[1]), sign(dist[2]) };
+      std::array<size_type, 3> side { sign(dist[0]), sign(dist[1]), sign(dist[2]) };
 
       C tmp;
       std::array<index_type, 3> A;
@@ -563,7 +609,7 @@ class BspTree
         A[2] = container_traits<C>::appendInterpolate(tmp, v3, v1, relation(dist[2], dist[0]));
       }
 
-      size_t preAddSize = container_traits<C>::getSize(out);
+      size_type preAddSize = container_traits<C>::getSize(out);
       bool complete = true; // is the triangle completely added with all parts that it is split into
       bool clipped = true;  // is the triangle split at all
 
@@ -584,6 +630,7 @@ class BspTree
           clipped = false;
           break;
 
+        default:
         case splitType( 0,  0,  1):
         case splitType( 0,  1,  0):
         case splitType( 0,  1,  1):
@@ -699,13 +746,13 @@ class BspTree
     {
       if (tree)
       {
-        size_t i = 0;
-        size_t s = container_traits<I>::getSize(tree->triangles);
+        size_type i = 0;
+        size_type s = container_traits<I>::getSize(tree->triangles);
         while (i+2 < s)
         {
-          auto v1 = get(vertices, get(tree->triangles, i  ));
-          auto v2 = get(vertices, get(tree->triangles, i+1));
-          auto v3 = get(vertices, get(tree->triangles, i+2));
+          auto v1 = getVertIndex(tree->triangles, i  );
+          auto v2 = getVertIndex(tree->triangles, i+1);
+          auto v3 = getVertIndex(tree->triangles, i+2);
 
           classifyTriangle(root_.get(), v1, v2, v3, inside, keepEdge, out, false);
 
@@ -739,7 +786,7 @@ class BspTree
     {
       I indices;
 
-      for (size_t i = 0; i < container_traits<C>::getSize(vertices_); i++)
+      for (size_type i = 0; i < container_traits<C>::getSize(vertices_); i++)
       {
         container_traits<I>::append(indices, i);
       }
