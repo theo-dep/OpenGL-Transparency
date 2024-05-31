@@ -301,6 +301,7 @@ void DeleteAccumulationRenderTargets()
 //--------------------------------------------------------------------------
 void InitBSP()
 {
+#ifdef BUILD_BSP
     printf("building BSP...\n");
 
     std::vector<Vertex> vertices;
@@ -333,6 +334,18 @@ void InitBSP()
     }
 
     g_bspTree = new VertexBspTree(std::move(vertices), indices);
+#else
+    printf("loading BSP...\n");
+
+    const std::string bspFilename = std::filesystem::canonical("models/mesh.bin").string();
+    g_bspTree = new VertexBspTree;
+
+    if (!g_bspTree->load(bspFilename))
+    {
+        std::cerr << "Error loading bsp " << bspFilename << std::endl;
+        exit(1);
+    }
+#endif
 
     glGenBuffers(1, &g_bspEboId);
     glGenBuffers(1, &g_bspVboId);
@@ -413,8 +426,8 @@ void SortAndReorganizeTriangles(std::vector<unsigned int>& indices, std::vector<
 void LoadModel()
 {
     printf("loading OBJ...\n");
-    const std::string model_filename = std::filesystem::canonical("models/mesh.obj").string();
-    g_scene = g_importer.ReadFile(model_filename,
+    const std::string modelFilename = std::filesystem::canonical("models/mesh.obj").string();
+    g_scene = g_importer.ReadFile(modelFilename,
         aiProcess_CalcTangentSpace       |
         aiProcess_Triangulate            |
         aiProcess_JoinIdenticalVertices  |
@@ -422,14 +435,14 @@ void LoadModel()
         aiProcess_GenBoundingBoxes);
 
     if (g_scene == nullptr || g_scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || g_scene->mNumMeshes != 1) {
-        std::cerr << "Error loading model " << model_filename << std::endl;
+        std::cerr << "Error loading model " << modelFilename << std::endl;
         exit(1);
     }
 
     g_model = g_scene->mMeshes[0];
 
     if (!g_model->HasNormals()) {
-        std::cerr << "Error model has no normals " << model_filename << std::endl;
+        std::cerr << "Error model has no normals " << modelFilename << std::endl;
         exit(1);
     }
 

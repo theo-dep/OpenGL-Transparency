@@ -1,5 +1,6 @@
 #include "Mesh.h"
 
+#ifndef NO_OPENGL
 //--------------------------------------------------------------------------
 void CreateBufferData(GLuint vboId, GLuint eboId, const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices)
 {
@@ -32,3 +33,4 @@ unsigned int* CreateMappedBufferData(GLuint vboId, GLuint eboId, const std::vect
     glBufferStorage(GL_ELEMENT_ARRAY_BUFFER, bufferSize, 0, flags);
     return (unsigned int*)glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, bufferSize, flags);
 }
+#endif

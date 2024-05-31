@@ -2,6 +2,10 @@ set(TARGET opengl-transparency)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BINARY_DIR})
 
+if(FastBSP)
+    add_definitions(-DBUILD_BSP)
+endif()
+
 file(GLOB SHADERS shaders/*.glsl)
 cmrc_add_resource_library(shaders-resources
     ALIAS shaders::rc
@@ -11,7 +15,7 @@ cmrc_add_resource_library(shaders-resources
 
 set(SOURCES
     thirdparty/bsptree.hpp
-    VertexBspTree.hpp
+    VertexBspTree.hpp VertexBspTree.cpp
     GLSLProgramObject.h GLSLProgramObject.cpp
     Mesh.h Mesh.cpp
     OSD.h OSD.cpp

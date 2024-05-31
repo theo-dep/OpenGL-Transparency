@@ -2,12 +2,10 @@
 
 #include "Mesh.h"
 
-#include <glm/vec3.hpp>
-#include <glm/geometric.hpp>
-
 #include "thirdparty/bsptree.hpp"
 
-typedef bsp::BspTree<std::vector<Vertex>, std::vector<unsigned int>> VertexBspTree;
+#include <glm/vec3.hpp>
+#include <glm/geometric.hpp>
 
 namespace bsp
 {
@@ -43,3 +41,19 @@ namespace bsp
         }
     };
 }
+
+typedef bsp::BspTree<std::vector<Vertex>, std::vector<unsigned int>> VertexBspTreeType;
+
+class VertexBspTree : public VertexBspTreeType
+{
+public:
+    VertexBspTree();
+    VertexBspTree(std::vector<Vertex> && vertices, const std::vector<unsigned int> & indices);
+
+    bool save(const std::string &filename) const noexcept;
+    bool load(const std::string &filename) noexcept;
+
+protected:
+    friend void writeNode(std::ofstream &ofs, const std::unique_ptr<VertexBspTreeType::Node> &node) noexcept;
+    friend std::unique_ptr<VertexBspTreeType::Node> readNode(std::ifstream &ifs) noexcept;
+};

@@ -77,7 +77,7 @@ template<class V> struct container_traits
 template <class C, class I, int E = 4>
 class BspTree
 {
-  public:
+  protected:
 
     // the vertex type and the type for indexing the vertex container
     using vertex_type = typename container_traits<C>::value_type;
@@ -86,6 +86,20 @@ class BspTree
     // the point type of a vertex type
     using point_type = typename vertex_traits<vertex_type>::position_type;
     using coord_type = typename point_traits<point_type>::coordinate_type;
+
+    // type for the node of the bsp-tree
+    typedef struct Node {
+      std::tuple<point_type, coord_type> plane; // the plane that intersects the space
+      I triangles;                         // the triangles that are on this plane
+      std::unique_ptr<struct Node> behind; // all that is behind the plane (relative to normal of plane)
+      std::unique_ptr<struct Node> infront;// all that is in front of the plane
+    } Node;
+
+    // pointer to root of bsp-tree
+    std::unique_ptr<Node> root_;
+
+    // the vertices of all triangles within the tree
+    C vertices_;
 
   private:
 
@@ -122,20 +136,6 @@ class BspTree
     {
       return std::abs(a) / ( std::abs(a) + std::abs(b) );
     }
-
-    // type for the node of the bsp-tree
-    typedef struct Node {
-      std::tuple<point_type, coord_type> plane; // the plane that intersects the space
-      I triangles;                         // the triangles that are on this plane
-      std::unique_ptr<struct Node> behind; // all that is behind the plane (relative to normal of plane)
-      std::unique_ptr<struct Node> infront;// all that is in front of the plane
-    } Node;
-
-    // pointer to root of bsp-tree
-    std::unique_ptr<Node> root_;
-
-    // the vertices of all triangles within the tree
-    C vertices_;
 
     // calculate the plane in hessian normal form for the triangle with the indices given in the triple p
     std::tuple<point_type, coord_type> calculatePlane(int a, int b, int c) noexcept
