@@ -18,9 +18,7 @@
 #include "GLSLProgramObject.h"
 #include "Mesh.h"
 #include "OSD.h"
-#ifdef WITH_BSP
-#include "BSP.h"
-#endif
+#include "VertexBspTree.hpp"
 
 #include <GL/glew.h>
 #include <GL/freeglut.h>
@@ -28,6 +26,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_access.hpp>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -98,7 +97,7 @@ glm::vec3 g_bbTrans(0.0, 0.0, 0.0);
 glm::vec2 g_rot(0.0, 45.0);
 glm::vec3 g_pos(0.0, 0.0, 2.0);
 
-glm::mat4 g_projetionMatrix;
+glm::mat4 g_projectionMatrix;
 glm::mat4 g_modelViewMatrix;
 
 glm::vec3 g_white(1);
@@ -121,9 +120,13 @@ GLuint g_frontColorBlenderFboId;
 GLuint g_accumulationTexId[2];
 GLuint g_accumulationFboId;
 
-#ifdef WITH_BSP
-bsp::Node* g_bspRootTree;
-#endif
+VertexBspTree* g_bspTree;
+
+GLuint g_bspVboId = 0;
+GLuint g_bspEboId = 0;
+GLuint g_bspVaoId = 0;
+GLsync g_syncBuffer = 0;
+unsigned int* g_bspIndicesBufferData = nullptr;
 
 GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
                            GL_COLOR_ATTACHMENT1,
@@ -298,42 +301,63 @@ void DeleteAccumulationRenderTargets()
 //--------------------------------------------------------------------------
 void InitBSP()
 {
-#ifdef WITH_BSP
     printf("building BSP...\n");
 
-    std::vector<bsp::Polygon> polygons(g_model->mNumFaces);
+    std::vector<Vertex> vertices;
+    vertices.reserve(g_model->mNumVertices);
+
+    for (unsigned int i = 0; i < g_model->mNumVertices; ++i) {
+        Vertex vertex;
+        glm::vec3 vector;
+        vector.x = g_model->mVertices[i].x;
+        vector.y = g_model->mVertices[i].y;
+        vector.z = g_model->mVertices[i].z;
+        vertex.Position = vector;
+
+        vector.x = g_model->mNormals[i].x;
+        vector.y = g_model->mNormals[i].y;
+        vector.z = g_model->mNormals[i].z;
+        vertex.Normal = vector;
+
+        vertices.push_back(vertex);
+    }
+
+    std::vector<unsigned int> indices;
+    indices.reserve(g_model->mNumFaces * 3);
+
     for (unsigned int i = 0; i < g_model->mNumFaces; ++i) {
         const aiFace &face = g_model->mFaces[i];
         for (unsigned int j = 0; j < 3 && j < face.mNumIndices; j++) {
-            Vertex vertex;
-            glm::vec3 vector;
-            vector.x = g_model->mVertices[face.mIndices[j]].x;
-            vector.y = g_model->mVertices[face.mIndices[j]].y;
-            vector.z = g_model->mVertices[face.mIndices[j]].z;
-            vertex.Position = vector;
-
-            vector.x = g_model->mNormals[face.mIndices[j]].x;
-            vector.y = g_model->mNormals[face.mIndices[j]].y;
-            vector.z = g_model->mNormals[face.mIndices[j]].z;
-            vertex.Normal = vector;
-
-            polygons[i][j] = vertex;
+            indices.push_back(face.mIndices[j]);
         }
     }
 
-    g_bspRootTree = bsp::Construct(polygons);
+    g_bspTree = new VertexBspTree(std::move(vertices), indices);
 
-    printf("%ld bsp nodes\n", bsp::Nodes(g_bspRootTree));
-    printf("%ld bsp fragments from %ld polygons\n", bsp::Fragments(g_bspRootTree), polygons.size());
-#endif
+    glGenBuffers(1, &g_bspEboId);
+    glGenBuffers(1, &g_bspVboId);
+    glGenVertexArrays(1, &g_bspVaoId);
+
+    glBindVertexArray(g_bspVaoId);
+
+    const std::vector<Vertex>& bspVertices = g_bspTree->getVertices();
+    std::vector<unsigned int> bspIndices = g_bspTree->sort(glm::vec3(-1, -1, -1));
+    g_bspIndicesBufferData = CreateMappedBufferData(g_bspVboId, g_bspEboId, bspVertices, bspIndices.size());
+
+    printf("%ld vertices\n", bspVertices.size());
+    printf("%ld triangles\n", bspIndices.size() / 3);
 }
 
 //--------------------------------------------------------------------------
 void DeleteBSP()
 {
-#ifdef WITH_BSP
-    bsp::Destroy(g_bspRootTree);
-#endif
+    delete g_bspTree;
+
+    glDeleteBuffers(1, &g_bspVboId);
+    glDeleteBuffers(1, &g_bspEboId);
+    glDeleteVertexArrays(1, &g_bspVaoId);
+
+    glDeleteSync(g_syncBuffer);
 }
 
 // Function to sort triangles and reorganize vertex data in ascending order
@@ -667,7 +691,7 @@ void RenderNormalBlending()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     g_shader3d.bind();
-    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shader3d.setUniform("Alpha", g_opacity);
@@ -704,7 +728,7 @@ void RenderDualPeeling()
     glBlendEquation(GL_MAX);
 
     g_shaderDualInit.bind();
-    g_shaderDualInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderDualInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     DrawModel();
 
     CHECK_GL_ERRORS;
@@ -744,7 +768,7 @@ void RenderDualPeeling()
         glBlendEquation(GL_MAX);
 
         g_shaderDualPeel.bind();
-        g_shaderDualPeel.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+        g_shaderDualPeel.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
         g_shaderDualPeel.setUniform("ModelViewMatrix", g_modelViewMatrix);
         g_shaderDualPeel.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
         g_shaderDualPeel.bindTextureRECT("DepthBlenderTex", g_dualDepthTexId[prevId], 0);
@@ -814,7 +838,7 @@ void RenderFrontToBackPeeling()
     glEnable(GL_DEPTH_TEST);
 
     g_shaderFrontInit.bind();
-    g_shaderFrontInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderFrontInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     g_shaderFrontInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shaderFrontInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shaderFrontInit.setUniform("Alpha", g_opacity);
@@ -845,7 +869,7 @@ void RenderFrontToBackPeeling()
         }
 
         g_shaderFrontPeel.bind();
-        g_shaderFrontPeel.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+        g_shaderFrontPeel.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
         g_shaderFrontPeel.setUniform("ModelViewMatrix", g_modelViewMatrix);
         g_shaderFrontPeel.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
         g_shaderFrontPeel.bindTextureRECT("DepthTex", g_frontDepthTexId[prevId], 0);
@@ -920,7 +944,7 @@ void RenderAverageColors()
     glEnable(GL_BLEND);
 
     g_shaderAverageInit.bind();
-    g_shaderAverageInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderAverageInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     g_shaderAverageInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shaderAverageInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shaderAverageInit.setUniform("Alpha", g_opacity);
@@ -966,7 +990,7 @@ void RenderWeightedSum()
     glEnable(GL_BLEND);
 
     g_shaderWeightedSumInit.bind();
-    g_shaderWeightedSumInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderWeightedSumInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     g_shaderWeightedSumInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shaderWeightedSumInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shaderWeightedSumInit.setUniform("Alpha", g_opacity);
@@ -997,7 +1021,16 @@ void RenderBSP()
     glClearColor(g_backgroundColor[0], g_backgroundColor[1], g_backgroundColor[2], 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-#ifdef WITH_BSP
+    // waiting for the buffer
+    if (g_syncBuffer)
+    {
+        GLenum waitReturn = GL_UNSIGNALED;
+        while (waitReturn != GL_ALREADY_SIGNALED && waitReturn != GL_CONDITION_SATISFIED)
+        {
+            waitReturn = glClientWaitSync(g_syncBuffer, GL_SYNC_FLUSH_COMMANDS_BIT, 1);
+        }
+    }
+
     glEnable(GL_DEPTH_TEST);
 
     glEnable(GL_BLEND);
@@ -1005,16 +1038,26 @@ void RenderBSP()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     g_shader3d.bind();
-    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shader3d.setUniform("Alpha", g_opacity);
-    bsp::Render(g_bspRootTree, g_modelViewMatrix);
+
+    glm::mat4 inverseViewMatrix = glm::inverse(g_modelViewMatrix);
+    glm::vec3 cameraPosition = glm::vec3(glm::column(inverseViewMatrix, 3));
+    std::vector<unsigned int> bspIndices = g_bspTree->sort(cameraPosition);
+    std::memcpy(g_bspIndicesBufferData, bspIndices.data(), bspIndices.size() * sizeof(unsigned int));
+
+    glBindVertexArray(g_bspVaoId);
+    glDrawElements(GL_TRIANGLES, bspIndices.size(), GL_UNSIGNED_INT, 0);
 
     g_numGeoPasses++;
 
     glDisable(GL_BLEND);
-#endif
+
+    // lock the buffer:
+    glDeleteSync(g_syncBuffer);
+    g_syncBuffer = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
     CHECK_GL_ERRORS;
 }
@@ -1091,7 +1134,7 @@ void reshapeFunc(int w, int h)
         InitAccumulationRenderTargets();
     }
 
-    g_projetionMatrix = glm::perspective(glm::radians(FOVY), (float)g_imageWidth / (float)g_imageHeight, ZNEAR, ZFAR);
+    g_projectionMatrix = glm::perspective(glm::radians(FOVY), (float)g_imageWidth / (float)g_imageHeight, ZNEAR, ZFAR);
 
     glViewport(0, 0, g_imageWidth, g_imageHeight);
 

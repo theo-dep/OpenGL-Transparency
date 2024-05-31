@@ -93,5 +93,9 @@
         "xtree": "cpp",
         "xutility": "cpp",
         "codecvt": "cpp"
-    }
+    },
+    "cSpell.words": [
+        "infront",
+        "polytopes"
+    ]
 }

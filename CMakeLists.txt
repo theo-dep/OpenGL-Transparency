@@ -5,7 +5,8 @@ project(opengl-transparency VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(BuildBSP "If set, build a transparency rendering with a Binary Spatial Partionning tree sorting" OFF)
+option(FastBSP "Nvidia dragon taking time to build with a BSP algorithm (871414 triangles),
+                use the Suzanne model version (<1000 triangles) instead" OFF)
 
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)

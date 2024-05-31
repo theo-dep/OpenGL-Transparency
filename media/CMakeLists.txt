@@ -1,6 +1,6 @@
 set(MODEL dragon)
-if(BuildBSP)
-    # BSP tree needs a lot of memory with the NVidia dragon
+if(FastBSP)
+    # BSP tree needs more than 1 day to compile with the NVidia dragon
     set(MODEL suzanne)
 endif()
 

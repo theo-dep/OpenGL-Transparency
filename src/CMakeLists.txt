@@ -10,18 +10,13 @@ cmrc_add_resource_library(shaders-resources
 )
 
 set(SOURCES
+    thirdparty/bsptree.hpp
+    VertexBspTree.hpp
     GLSLProgramObject.h GLSLProgramObject.cpp
     Mesh.h Mesh.cpp
     OSD.h OSD.cpp
     opengl-transparency.cpp
 )
-
-if(BuildBSP)
-    add_definitions(-DWITH_BSP)
-    list(APPEND SOURCES
-        BSP.h BSP.cpp
-    )
-endif()
 
 add_executable(${TARGET} ${SOURCES})
 
