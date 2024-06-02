@@ -25,5 +25,16 @@
       "version>=": "2023-07-24"
     }
   ],
+  "features": {
+    "build-bsp": {
+      "description": "Build BSP to binary",
+      "dependencies": [
+        {
+          "name": "tbb",
+          "version>=": "2021.11.0"
+        }
+      ]
+    }
+  },
   "builtin-baseline": "326d8b43e365352ba3ccadf388d989082fe0f2a6"
 }

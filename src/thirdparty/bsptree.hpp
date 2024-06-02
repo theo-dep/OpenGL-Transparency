@@ -8,8 +8,14 @@
 #include <array>
 
 #include <algorithm>
-#include <execution>
 #include <ranges>
+
+#ifdef PARALLEL
+#include <execution>
+#define EXECUTION_PAR std::execution::par,
+#else
+#define EXECUTION_PAR
+#endif
 
 namespace bsp {
 
@@ -441,7 +447,7 @@ class BspTree
 
         { // parallelize all pivot evaluations
           auto stridedIndices = std::views::iota(size_type(0), container_traits<I>::getSize(indices)) | std::views::stride(3);
-          std::transform(std::execution::par, stridedIndices.cbegin(), stridedIndices.cend(), pivots.begin(),
+          std::transform(EXECUTION_PAR stridedIndices.cbegin(), stridedIndices.cend(), pivots.begin(),
             [this, &indices](size_type i) -> decltype(pivots)::value_type
             {
               return std::make_tuple(i, evaluatePivot(i, indices));
@@ -484,6 +490,7 @@ class BspTree
 
         // sort the triangles into the 3 containers
         node->plane = separateTriangles(best, indices, behind, infront, node->triangles);
+
         node->behind = makeTree(behind);
         node->infront = makeTree(infront);
 

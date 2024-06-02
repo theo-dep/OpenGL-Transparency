@@ -1,6 +1,6 @@
 set(MODEL dragon)
 if(FastBSP)
-    # BSP tree needs some hours to compile with the NVidia dragon
+    # BSP tree needs some days to compile with the NVidia dragon
     set(MODEL suzanne)
 endif()
 

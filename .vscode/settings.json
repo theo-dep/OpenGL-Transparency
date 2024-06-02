@@ -93,7 +93,10 @@
         "xtree": "cpp",
         "xutility": "cpp",
         "codecvt": "cpp",
-        "ranges": "cpp"
+        "ranges": "cpp",
+        "future": "cpp",
+        "shared_mutex": "cpp",
+        "cfenv": "cpp"
     },
     "cSpell.words": [
         "infront",
