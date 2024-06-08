@@ -48,8 +48,8 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    std::cout << std::to_string(model->mNumVertices) << " vertices" << std::endl;
-    std::cout << std::to_string(model->mNumFaces) << " triangles" << std::endl;
+    std::cout << model->mNumVertices << " vertices" << std::endl;
+    std::cout << model->mNumFaces << " triangles" << std::endl;
 
     std::cout << "Building BSP..." << std::endl;
 
@@ -90,8 +90,8 @@ int main(int argc, char** argv)
     const std::vector<Vertex>& bspVertices = bspTree.getVertices();
     std::vector<unsigned int> bspIndices = bspTree.sort(glm::vec3(-1, -1, -1));
 
-    std::cout << std::to_string(bspVertices.size()) << " vertices" << std::endl;
-    std::cout << std::to_string(bspIndices.size() / 3) << " triangles" << std::endl;
+    std::cout << bspVertices.size() << " vertices" << std::endl;
+    std::cout << (bspIndices.size() / 3) << " triangles" << std::endl;
 
 
     std::filesystem::path path(modelFilename);

@@ -302,7 +302,7 @@ void DeleteAccumulationRenderTargets()
 void InitBSP()
 {
 #ifdef BUILD_BSP
-    printf("building BSP...\n");
+    std::cout << "building BSP..." << std::endl;
 
     std::vector<Vertex> vertices;
     vertices.reserve(g_model->mNumVertices);
@@ -335,7 +335,7 @@ void InitBSP()
 
     g_bspTree = new VertexBspTree(std::move(vertices), indices);
 #else
-    printf("loading BSP...\n");
+    std::cout << "loading BSP..." << std::endl;
 
     const std::string bspFilename = std::filesystem::canonical("models/mesh.bin").string();
     g_bspTree = new VertexBspTree;
@@ -357,8 +357,8 @@ void InitBSP()
     std::vector<unsigned int> bspIndices = g_bspTree->sort(glm::vec3(-1, -1, -1));
     g_bspIndicesBufferData = CreateMappedBufferData(g_bspVboId, g_bspEboId, bspVertices, bspIndices.size());
 
-    printf("%ld vertices\n", bspVertices.size());
-    printf("%ld triangles\n", bspIndices.size() / 3);
+    std::cout << bspVertices.size() << " vertices" << std::endl;
+    std::cout << (bspIndices.size() / 3) << " triangles" << std::endl;
 }
 
 //--------------------------------------------------------------------------
@@ -425,7 +425,7 @@ void SortAndReorganizeTriangles(std::vector<unsigned int>& indices, std::vector<
 //--------------------------------------------------------------------------
 void LoadModel()
 {
-    printf("loading OBJ...\n");
+    std::cout << "loading OBJ..." << std::endl;
     const std::string modelFilename = std::filesystem::canonical("models/mesh.obj").string();
     g_scene = g_importer.ReadFile(modelFilename,
         aiProcess_CalcTangentSpace       |
@@ -446,8 +446,8 @@ void LoadModel()
         exit(1);
     }
 
-    printf("%d vertices\n", g_model->mNumVertices);
-    printf("%d triangles\n", g_model->mNumFaces);
+    std::cout << g_model->mNumVertices << " vertices" << std::endl;
+    std::cout << g_model->mNumFaces << " triangles" << std::endl;
 
     std::vector<Vertex> vertices;
     vertices.reserve(g_model->mNumVertices);
@@ -535,7 +535,7 @@ void DrawModel(bool sorted = false)
 //--------------------------------------------------------------------------
 void BuildShaders()
 {
-    printf("\nloading shaders...\n");
+    std::cout << "loading shaders..." << std::endl;
 
     g_shader3d.attachVertexShader("shade_vertex.glsl");
     g_shader3d.attachVertexShader("3d_vertex.glsl");
@@ -604,6 +604,8 @@ void BuildShaders()
     LoadShaderText();
 
     CHECK_GL_ERRORS;
+
+    std::cout << std::endl;
 }
 
 //--------------------------------------------------------------------------
@@ -1328,19 +1330,20 @@ int main(int argc, char *argv[])
 {
     std::filesystem::current_path(std::filesystem::canonical(argv[0]).parent_path());
 
-    printf("dual_depth_peeling - sample comparing multiple order independent transparency techniques\n");
-    printf("  Commands:\n");
-    printf("     A/D       - Change uniform opacity\n");
-    printf("     0         - Normal blending mode\n");
-    printf("     1         - Dual peeling mode\n");
-    printf("     2         - Front to back peeling mode\n");
-    printf("     3         - Weighted average mode\n");
-    printf("     4         - Weighted sum mode\n");
-    printf("     5         - BSP mode\n");
-    printf("     R         - Reload all shaders\n");
-    printf("     B         - Change background color\n");
-    printf("     Q         - Toggle occlusion queries\n");
-    printf("     +/-       - Change number of geometry passes\n\n");
+    std::cout << "dual_depth_peeling - sample comparing multiple order independent transparency techniques" << std::endl;
+    std::cout << "  Commands:" << std::endl;
+    std::cout << "     A/D       - Change uniform opacity" << std::endl;
+    std::cout << "     0         - Normal blending mode" << std::endl;
+    std::cout << "     1         - Dual peeling mode" << std::endl;
+    std::cout << "     2         - Front to back peeling mode" << std::endl;
+    std::cout << "     3         - Weighted average mode" << std::endl;
+    std::cout << "     4         - Weighted sum mode" << std::endl;
+    std::cout << "     5         - BSP mode" << std::endl;
+    std::cout << "     R         - Reload all shaders" << std::endl;
+    std::cout << "     B         - Change background color" << std::endl;
+    std::cout << "     Q         - Toggle occlusion queries" << std::endl;
+    std::cout << "     +/-       - Change number of geometry passes" << std::endl;
+    std::cout << std::endl;
 
     glutInit(&argc, argv);
     glutSetOption(GLUT_MULTISAMPLE, 8);
@@ -1353,20 +1356,21 @@ int main(int argc, char *argv[])
     const int windowHandle = glutCreateWindow("Order Independent Transparency");
     if (windowHandle == -1)
     {
-        printf("glutCreateWindow failed. Exiting...\n");
+        std::cerr << "glutCreateWindow failed. Exiting..." << std::endl;
         exit(1);
     }
 
     if (glewInit() != GLEW_OK)
     {
-        printf("glewInit failed. Exiting...\n");
+        std::cerr << "glewInit failed. Exiting..." << std::endl;
         exit(1);
     }
 
-    printf("GL version %s\n", glGetString(GL_VERSION));
-    printf("GL vendor %s\n", glGetString(GL_VENDOR));
-    printf("GL render %s\n", glGetString(GL_RENDERER));
-    printf("GLSL version %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+    std::cout << "GL version " << glGetString(GL_VERSION) << std::endl;
+    std::cout << "GL vendor " << glGetString(GL_VENDOR) << std::endl;
+    std::cout << "GL render " << glGetString(GL_RENDERER) << std::endl;
+    std::cout << "GLSL version " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+    std::cout << std::endl;
 
     InitGL();
     InitMenus();
