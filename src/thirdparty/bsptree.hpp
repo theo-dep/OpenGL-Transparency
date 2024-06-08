@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <ranges>
+#include <map>
 
 #ifdef PARALLEL
 #include <execution>
@@ -103,12 +104,14 @@ class BspTree
     using point_type = typename vertex_traits<vertex_type>::position_type;
     using coord_type = typename point_traits<point_type>::coordinate_type;
 
+    typedef std::tuple<point_type, coord_type> Plane; // plane type
+
     // type for the node of the bsp-tree
     typedef struct Node {
-      std::tuple<point_type, coord_type> plane; // the plane that intersects the space
-      I triangles;                         // the triangles that are on this plane
+      Plane plane; // the plane that intersects the space
+      I triangles; // the triangles that are on this plane
       std::unique_ptr<struct Node> behind; // all that is behind the plane (relative to normal of plane)
-      std::unique_ptr<struct Node> infront;// all that is in front of the plane
+      std::unique_ptr<struct Node> infront; // all that is in front of the plane
     } Node;
 
     // pointer to root of bsp-tree
@@ -121,6 +124,9 @@ class BspTree
 
     // Some internal helper functions
 
+    static constexpr const point_type& normal(const Plane & plane) noexcept { return std::get<0>(plane); }
+    static constexpr const coord_type& offset(const Plane & plane) noexcept { return std::get<1>(plane); }
+
     // a function that is used to contract the numbers between -1 and 1 into one, used
     // for the categorisation of a triangles relation to the cutting plane
     static constexpr size_type splitType(size_type a, size_type b, size_type c) noexcept
@@ -129,9 +135,9 @@ class BspTree
     }
 
     // calculate distance of a point from a plane
-    static coord_type distance(const std::tuple<point_type, coord_type> & plane, const point_type & t) noexcept
+    static coord_type distance(const Plane & plane, const point_type & t) noexcept
     {
-      return (point_traits<point_type>::dot(std::get<0>(plane), t) - std::get<1>(plane));
+      return (point_traits<point_type>::dot(normal(plane), t) - offset(plane));
     }
 
     // calculate the pow number of e
@@ -142,7 +148,7 @@ class BspTree
     }
 
     // calculate the sign of a number,
-    static size_type sign(coord_type i) noexcept
+    static constexpr size_type sign(coord_type i) noexcept
     {
       // the epsilon value for deciding if a point is on a plane
       constexpr coord_type epsilon = pow(0.1, E);
@@ -168,7 +174,7 @@ class BspTree
     }
 
     // calculate the plane in hessian normal form for the triangle with the indices given in the triple p
-    std::tuple<point_type, coord_type> calculatePlane(size_type a, size_type b, size_type c) const noexcept
+    Plane calculatePlane(size_type a, size_type b, size_type c) const noexcept
     {
       auto p1 = vertex_traits<vertex_type>::getPosition(get(vertices_, a));
       auto p2 = vertex_traits<vertex_type>::getPosition(get(vertices_, b));
@@ -203,10 +209,10 @@ class BspTree
     // plane of the triangle given in pivot
     // when needed triangles are split and the smaller triangles are added to the proper lists
     // return the plane
-    std::tuple<point_type, coord_type> separateTriangles(size_type pivot, const I & indices, I & behind, I & infront, I & onPlane)
+    Plane separateTriangles(size_type pivot, const I & indices, I & behind, I & infront, I & onPlane)
     {
       // get the plane of the pivot triangle
-      auto plane = calculatePlane(
+      const Plane plane = calculatePlane(
         get(indices, pivot  ),
         get(indices, pivot+1),
         get(indices, pivot+2)
@@ -354,15 +360,34 @@ class BspTree
       return plane;
     }
 
+    typedef std::tuple<size_type, size_type> Pivot; // pivot type (number behind, number infront)
+    // helper to find the good pivot point
+    struct PivotCompare
+    {
+      // new pivot is better, if
+      // the total number of triangles is lower (less division)
+      // or equal and the triangles more equally distributed between left and right
+      bool operator()(const Pivot & lhs, const Pivot & rhs) const
+      {
+        const auto [nb, nf]{ lhs };
+        size_type ns = nb+nf;
+
+        const auto [bb, bf]{ rhs };
+        size_type bs = bb+bf;
+
+        return ((ns < bs) || ((ns == bs) && (abs(nb-nf) < abs(bb-bf))));
+      }
+    };
+
     // check what would happen if the plane of pivot is used as a cutting plane for the triangles in indices
     // returns the number of triangles that would end up on the plane of pivot, behind it or in front of it
-    std::tuple<size_type, size_type> evaluatePivot(size_type pivot, const I & indices) const noexcept
+    Pivot evaluatePivot(size_type pivot, const I & indices) const noexcept
     {
       size_type behind = 0;
       size_type infront = 0;
 
       // count how many triangles would need to be cut, would lie behind and in front of the plane
-      auto plane = calculatePlane(
+      const Plane plane = calculatePlane(
         get(indices, pivot  ),
         get(indices, pivot+1),
         get(indices, pivot+2)
@@ -441,43 +466,26 @@ class BspTree
     {
       if (container_traits<I>::getSize(indices) > 3)
       {
-        // find a good pivot element
+        size_type bestIndex = 0;
+        Pivot bestPivot;
 
-        std::vector<std::tuple<size_type, std::tuple<size_type, size_type>>> pivots(container_traits<I>::getSize(indices) / 3);
+        { // find a good pivot element
 
-        { // parallelize all pivot evaluations
-          auto stridedIndices = std::views::iota(size_type(0), container_traits<I>::getSize(indices)) | std::views::stride(3);
-          std::transform(EXECUTION_PAR stridedIndices.cbegin(), stridedIndices.cend(), pivots.begin(),
-            [this, &indices](size_type i) -> decltype(pivots)::value_type
-            {
-              return std::make_tuple(i, evaluatePivot(i, indices));
-            }
-          );
-        }
+          std::map<Pivot, size_type, PivotCompare> pivots;
+          //pivots.reserve(container_traits<I>::getSize(indices) / 3);
 
-        auto [best, bestPivot]{ pivots.back() };
-        pivots.pop_back();
-
-        // the loop is done in a way that ignores indices at the end that
-        // don't result in a triangle any more
-
-        for (const auto& [i, pivot] : pivots)
-        {
-          // new pivot is better, if
-          // the total number of triangles is lower (less division)
-          // or equal and the triangles more equally distributed between left and right
-
-          const auto [nb, nf]{ pivot };
-          size_type ns = nb+nf;
-
-          const auto [bb, bf]{ bestPivot };
-          size_type bs = bb+bf;
-
-          if ((ns < bs) || ((ns == bs) && (abs(nb-nf) < abs(bb-bf))))
-          {
-            bestPivot = pivot;
-            best = i;
+          { // parallelize all pivot evaluations
+            auto stridedIndices = std::views::iota(size_type(0), container_traits<I>::getSize(indices)) | std::views::stride(3);
+            std::transform(EXECUTION_PAR stridedIndices.cbegin(), stridedIndices.cend(), std::inserter(pivots, pivots.end()),
+              [this, &indices](size_type i) -> decltype(pivots)::value_type
+              {
+                return std::make_pair(evaluatePivot(i, indices), i);
+              }
+            );
           }
+
+          bestPivot = pivots.begin()->first;
+          bestIndex = pivots.begin()->second;
         }
 
         // create the node for this part of the tree
@@ -489,7 +497,7 @@ class BspTree
         container_traits<I>::reserve(infront, std::get<1>(bestPivot));
 
         // sort the triangles into the 3 containers
-        node->plane = separateTriangles(best, indices, behind, infront, node->triangles);
+        node->plane = separateTriangles(bestIndex, indices, behind, infront, node->triangles);
 
         node->behind = makeTree(behind);
         node->infront = makeTree(infront);
