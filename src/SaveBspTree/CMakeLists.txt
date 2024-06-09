@@ -9,6 +9,7 @@ include_directories(..)
 set(SOURCES
     ../thirdparty/bsptree.hpp
     ../VertexBspTree.hpp ../VertexBspTree.cpp
+    VertexPartBspTree.h VertexPartBspTree.cpp
     ../Mesh.h ../Mesh.cpp
     main.cpp
 )

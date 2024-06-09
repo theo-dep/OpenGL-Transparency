@@ -13,7 +13,7 @@
 
 #ifdef PARALLEL
 #include <execution>
-#define EXECUTION_PAR std::execution::par,
+#define EXECUTION_PAR /*std::execution::par,*/
 #else
 #define EXECUTION_PAR
 #endif
@@ -120,7 +120,7 @@ class BspTree
     // the vertices of all triangles within the tree
     C vertices_;
 
-  private:
+  protected:
 
     // Some internal helper functions
 

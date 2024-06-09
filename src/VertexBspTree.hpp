@@ -49,6 +49,7 @@ class VertexBspTree : public VertexBspTreeType
 public:
     VertexBspTree();
     VertexBspTree(std::vector<Vertex> && vertices, const std::vector<unsigned int> & indices);
+    VertexBspTree(std::vector<Vertex> && vertices);
 
     bool save(const std::string &filename) const noexcept;
     bool load(const std::string &filename) noexcept;

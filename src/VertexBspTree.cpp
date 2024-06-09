@@ -18,6 +18,11 @@ VertexBspTree::VertexBspTree(std::vector<Vertex> && vertices, const std::vector<
 }
 
 //--------------------------------------------------------------------------
+VertexBspTree::VertexBspTree(std::vector<Vertex> && vertices) : VertexBspTreeType(std::move(vertices))
+{
+}
+
+//--------------------------------------------------------------------------
 bool VertexBspTree::save(const std::string &filename) const noexcept
 {
     std::ofstream ofs(filename, std::ios::binary);
