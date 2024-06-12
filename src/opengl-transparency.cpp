@@ -535,6 +535,7 @@ void DrawModel(bool sorted = false)
 //--------------------------------------------------------------------------
 void BuildShaders()
 {
+    std::cout << std::endl;
     std::cout << "loading shaders..." << std::endl;
 
     g_shader3d.attachVertexShader("shade_vertex.glsl");

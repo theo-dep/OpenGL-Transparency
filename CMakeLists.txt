@@ -26,7 +26,6 @@ endif()
 
 set(BINARY_DIR ${CMAKE_SOURCE_DIR}/${CMAKE_BUILD_TYPE}/bin)
 add_subdirectory(media)
-
 add_subdirectory(src)
 
 if(BuildBSP)

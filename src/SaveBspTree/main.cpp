@@ -29,17 +29,17 @@ int main(int argc, char** argv)
 
     { // detecting parts
         std::filesystem::path pathPart(modelFilename);
-        const std::string fileExtension = pathPart.extension();
-        const std::string filename = pathPart.filename().replace_extension("");
+        const std::string fileExtension = pathPart.extension().string();
+        const std::string filename = pathPart.filename().replace_extension("").string();
         std::size_t i = 1;
-        pathPart.replace_filename(filename + "-" + std::to_string(i) + ".obj");
+        pathPart.replace_filename(filename + "-" + std::to_string(i) + fileExtension);
         if (std::filesystem::exists(pathPart))
         {
             do
             {
                 std::cout << "Detecting part " << pathPart.string() << std::endl;
                 filenameToLoad.push_back(pathPart.string());
-                pathPart.replace_filename(filename + "-" + std::to_string(++i) + ".obj");
+                pathPart.replace_filename(filename + "-" + std::to_string(++i) + fileExtension);
             } while (std::filesystem::exists(pathPart));
         }
         else

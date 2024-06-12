@@ -9,11 +9,15 @@
 
 #include <algorithm>
 #include <ranges>
-#include <map>
+
+#ifdef PRINT_LOG
+#include <iostream>
+#include <chrono>
+#endif
 
 #ifdef PARALLEL
 #include <execution>
-#define EXECUTION_PAR /*std::execution::par,*/
+#define EXECUTION_PAR std::execution::par,
 #else
 #define EXECUTION_PAR
 #endif
@@ -367,12 +371,13 @@ class BspTree
       // new pivot is better, if
       // the total number of triangles is lower (less division)
       // or equal and the triangles more equally distributed between left and right
-      bool operator()(const Pivot & lhs, const Pivot & rhs) const
+      //bool operator()(const Pivot & lhs, const Pivot & rhs) const
+      bool operator()(const std::pair<Pivot, size_type> & lhs, const std::pair<Pivot, size_type> & rhs) const
       {
-        const auto [nb, nf]{ lhs };
+        const auto [nb, nf]{ lhs.first };
         size_type ns = nb+nf;
 
-        const auto [bb, bf]{ rhs };
+        const auto [bb, bf]{ rhs.first };
         size_type bs = bb+bf;
 
         return ((ns < bs) || ((ns == bs) && (abs(nb-nf) < abs(bb-bf))));
@@ -470,18 +475,22 @@ class BspTree
         Pivot bestPivot;
 
         { // find a good pivot element
+#ifdef PRINT_LOG
+          std::cout << "Start: " << std::format("{:%d/%m/%Y %H:%M:%S}", std::chrono::system_clock::now()) << std::endl;
+#endif
 
-          std::map<Pivot, size_type, PivotCompare> pivots;
-          //pivots.reserve(container_traits<I>::getSize(indices) / 3);
+          std::vector<std::pair<Pivot, size_type>> pivots(container_traits<I>::getSize(indices) / 3);
 
           { // parallelize all pivot evaluations
             auto stridedIndices = std::views::iota(size_type(0), container_traits<I>::getSize(indices)) | std::views::stride(3);
-            std::transform(EXECUTION_PAR stridedIndices.cbegin(), stridedIndices.cend(), std::inserter(pivots, pivots.end()),
+            std::transform(EXECUTION_PAR stridedIndices.cbegin(), stridedIndices.cend(), pivots.begin(),
               [this, &indices](size_type i) -> decltype(pivots)::value_type
               {
                 return std::make_pair(evaluatePivot(i, indices), i);
               }
             );
+
+            std::sort(EXECUTION_PAR pivots.begin(), pivots.end(), PivotCompare{});
           }
 
           bestPivot = pivots.begin()->first;
@@ -498,6 +507,17 @@ class BspTree
 
         // sort the triangles into the 3 containers
         node->plane = separateTriangles(bestIndex, indices, behind, infront, node->triangles);
+
+#ifdef PRINT_LOG
+        std::cout << "End: " << std::format("{:%d/%m/%Y %H:%M:%S}", std::chrono::system_clock::now())
+          << ", best " << bestIndex
+          << ", from " << indices.size()
+          << ", remaining " << (behind.size() + infront.size())
+          << ", on " << node->triangles.size()
+          << ", behind " << behind.size()
+          << ", infront " << infront.size()
+          << std::endl;
+#endif
 
         node->behind = makeTree(behind);
         node->infront = makeTree(infront);
