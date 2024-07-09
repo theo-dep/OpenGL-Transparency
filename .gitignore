@@ -400,3 +400,6 @@ FodyWeavers.xsd
 
 # vcpkg
 vcpkg_installed/
+
+# models
+!media/models/**/*.obj

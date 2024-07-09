@@ -164,7 +164,7 @@ int main(int argc, char** argv)
         bspTreeToSave = std::accumulate(std::next(bspTrees.cbegin()), bspTrees.cend(), bspTrees.front(),
             [](const std::shared_ptr<VertexPartBspTree> & fullBspTree, const std::shared_ptr<VertexPartBspTree> & bspTree) -> std::shared_ptr<VertexPartBspTree>
             {
-                return VertexPartBspTree::unify(*fullBspTree, *bspTree);
+                return VertexPartBspTree::merge(*fullBspTree, *bspTree);
             });
     }
     else
