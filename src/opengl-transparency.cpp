@@ -18,9 +18,7 @@
 #include "GLSLProgramObject.h"
 #include "Mesh.h"
 #include "OSD.h"
-#ifdef WITH_BSP
-#include "BSP.h"
-#endif
+#include "VertexBspTree.hpp"
 
 #include <GL/glew.h>
 #include <GL/freeglut.h>
@@ -28,6 +26,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_access.hpp>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -98,7 +97,7 @@ glm::vec3 g_bbTrans(0.0, 0.0, 0.0);
 glm::vec2 g_rot(0.0, 45.0);
 glm::vec3 g_pos(0.0, 0.0, 2.0);
 
-glm::mat4 g_projetionMatrix;
+glm::mat4 g_projectionMatrix;
 glm::mat4 g_modelViewMatrix;
 
 glm::vec3 g_white(1);
@@ -121,9 +120,13 @@ GLuint g_frontColorBlenderFboId;
 GLuint g_accumulationTexId[2];
 GLuint g_accumulationFboId;
 
-#ifdef WITH_BSP
-bsp::Node* g_bspRootTree;
-#endif
+VertexBspTree* g_bspTree;
+
+GLuint g_bspVboId = 0;
+GLuint g_bspEboId = 0;
+GLuint g_bspVaoId = 0;
+GLsync g_syncBuffer = 0;
+unsigned int* g_bspIndicesBufferData = nullptr;
 
 GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
                            GL_COLOR_ATTACHMENT1,
@@ -298,42 +301,76 @@ void DeleteAccumulationRenderTargets()
 //--------------------------------------------------------------------------
 void InitBSP()
 {
-#ifdef WITH_BSP
-    printf("building BSP...\n");
+#ifdef BUILD_BSP
+    std::cout << "building BSP..." << std::endl;
 
-    std::vector<bsp::Polygon> polygons(g_model->mNumFaces);
+    std::vector<Vertex> vertices;
+    vertices.reserve(g_model->mNumVertices);
+
+    for (unsigned int i = 0; i < g_model->mNumVertices; ++i) {
+        Vertex vertex;
+        glm::vec3 vector;
+        vector.x = g_model->mVertices[i].x;
+        vector.y = g_model->mVertices[i].y;
+        vector.z = g_model->mVertices[i].z;
+        vertex.Position = vector;
+
+        vector.x = g_model->mNormals[i].x;
+        vector.y = g_model->mNormals[i].y;
+        vector.z = g_model->mNormals[i].z;
+        vertex.Normal = vector;
+
+        vertices.push_back(vertex);
+    }
+
+    std::vector<unsigned int> indices;
+    indices.reserve(g_model->mNumFaces * 3);
+
     for (unsigned int i = 0; i < g_model->mNumFaces; ++i) {
         const aiFace &face = g_model->mFaces[i];
         for (unsigned int j = 0; j < 3 && j < face.mNumIndices; j++) {
-            Vertex vertex;
-            glm::vec3 vector;
-            vector.x = g_model->mVertices[face.mIndices[j]].x;
-            vector.y = g_model->mVertices[face.mIndices[j]].y;
-            vector.z = g_model->mVertices[face.mIndices[j]].z;
-            vertex.Position = vector;
-
-            vector.x = g_model->mNormals[face.mIndices[j]].x;
-            vector.y = g_model->mNormals[face.mIndices[j]].y;
-            vector.z = g_model->mNormals[face.mIndices[j]].z;
-            vertex.Normal = vector;
-
-            polygons[i][j] = vertex;
+            indices.push_back(face.mIndices[j]);
         }
     }
 
-    g_bspRootTree = bsp::Construct(polygons);
+    g_bspTree = new VertexBspTree(std::move(vertices), indices);
+#else
+    std::cout << "loading BSP..." << std::endl;
 
-    printf("%ld bsp nodes\n", bsp::Nodes(g_bspRootTree));
-    printf("%ld bsp fragments from %ld polygons\n", bsp::Fragments(g_bspRootTree), polygons.size());
+    const std::string bspFilename = std::filesystem::canonical("models/mesh.bin").string();
+    g_bspTree = new VertexBspTree;
+
+    if (!g_bspTree->load(bspFilename))
+    {
+        std::cerr << "Error loading bsp " << bspFilename << std::endl;
+        exit(1);
+    }
 #endif
+
+    glGenBuffers(1, &g_bspEboId);
+    glGenBuffers(1, &g_bspVboId);
+    glGenVertexArrays(1, &g_bspVaoId);
+
+    glBindVertexArray(g_bspVaoId);
+
+    const std::vector<Vertex>& bspVertices = g_bspTree->getVertices();
+    std::vector<unsigned int> bspIndices = g_bspTree->sort(glm::vec3(-1, -1, -1));
+    g_bspIndicesBufferData = CreateMappedBufferData(g_bspVboId, g_bspEboId, bspVertices, bspIndices.size());
+
+    std::cout << bspVertices.size() << " vertices" << std::endl;
+    std::cout << (bspIndices.size() / 3) << " triangles" << std::endl;
 }
 
 //--------------------------------------------------------------------------
 void DeleteBSP()
 {
-#ifdef WITH_BSP
-    bsp::Destroy(g_bspRootTree);
-#endif
+    delete g_bspTree;
+
+    glDeleteBuffers(1, &g_bspVboId);
+    glDeleteBuffers(1, &g_bspEboId);
+    glDeleteVertexArrays(1, &g_bspVaoId);
+
+    glDeleteSync(g_syncBuffer);
 }
 
 // Function to sort triangles and reorganize vertex data in ascending order
@@ -388,9 +425,9 @@ void SortAndReorganizeTriangles(std::vector<unsigned int>& indices, std::vector<
 //--------------------------------------------------------------------------
 void LoadModel()
 {
-    printf("loading OBJ...\n");
-    const std::string model_filename = std::filesystem::canonical("models/mesh.obj").string();
-    g_scene = g_importer.ReadFile(model_filename,
+    std::cout << "loading OBJ..." << std::endl;
+    const std::string modelFilename = std::filesystem::canonical("models/mesh.obj").string();
+    g_scene = g_importer.ReadFile(modelFilename,
         aiProcess_CalcTangentSpace       |
         aiProcess_Triangulate            |
         aiProcess_JoinIdenticalVertices  |
@@ -398,19 +435,19 @@ void LoadModel()
         aiProcess_GenBoundingBoxes);
 
     if (g_scene == nullptr || g_scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || g_scene->mNumMeshes != 1) {
-        std::cerr << "Error loading model " << model_filename << std::endl;
+        std::cerr << "Error loading model " << modelFilename << std::endl;
         exit(1);
     }
 
     g_model = g_scene->mMeshes[0];
 
     if (!g_model->HasNormals()) {
-        std::cerr << "Error model has no normals " << model_filename << std::endl;
+        std::cerr << "Error model has no normals " << modelFilename << std::endl;
         exit(1);
     }
 
-    printf("%d vertices\n", g_model->mNumVertices);
-    printf("%d triangles\n", g_model->mNumFaces);
+    std::cout << g_model->mNumVertices << " vertices" << std::endl;
+    std::cout << g_model->mNumFaces << " triangles" << std::endl;
 
     std::vector<Vertex> vertices;
     vertices.reserve(g_model->mNumVertices);
@@ -498,7 +535,8 @@ void DrawModel(bool sorted = false)
 //--------------------------------------------------------------------------
 void BuildShaders()
 {
-    printf("\nloading shaders...\n");
+    std::cout << std::endl;
+    std::cout << "loading shaders..." << std::endl;
 
     g_shader3d.attachVertexShader("shade_vertex.glsl");
     g_shader3d.attachVertexShader("3d_vertex.glsl");
@@ -567,6 +605,8 @@ void BuildShaders()
     LoadShaderText();
 
     CHECK_GL_ERRORS;
+
+    std::cout << std::endl;
 }
 
 //--------------------------------------------------------------------------
@@ -667,7 +707,7 @@ void RenderNormalBlending()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     g_shader3d.bind();
-    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shader3d.setUniform("Alpha", g_opacity);
@@ -704,7 +744,7 @@ void RenderDualPeeling()
     glBlendEquation(GL_MAX);
 
     g_shaderDualInit.bind();
-    g_shaderDualInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderDualInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     DrawModel();
 
     CHECK_GL_ERRORS;
@@ -744,7 +784,7 @@ void RenderDualPeeling()
         glBlendEquation(GL_MAX);
 
         g_shaderDualPeel.bind();
-        g_shaderDualPeel.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+        g_shaderDualPeel.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
         g_shaderDualPeel.setUniform("ModelViewMatrix", g_modelViewMatrix);
         g_shaderDualPeel.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
         g_shaderDualPeel.bindTextureRECT("DepthBlenderTex", g_dualDepthTexId[prevId], 0);
@@ -814,7 +854,7 @@ void RenderFrontToBackPeeling()
     glEnable(GL_DEPTH_TEST);
 
     g_shaderFrontInit.bind();
-    g_shaderFrontInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderFrontInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     g_shaderFrontInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shaderFrontInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shaderFrontInit.setUniform("Alpha", g_opacity);
@@ -845,7 +885,7 @@ void RenderFrontToBackPeeling()
         }
 
         g_shaderFrontPeel.bind();
-        g_shaderFrontPeel.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+        g_shaderFrontPeel.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
         g_shaderFrontPeel.setUniform("ModelViewMatrix", g_modelViewMatrix);
         g_shaderFrontPeel.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
         g_shaderFrontPeel.bindTextureRECT("DepthTex", g_frontDepthTexId[prevId], 0);
@@ -920,7 +960,7 @@ void RenderAverageColors()
     glEnable(GL_BLEND);
 
     g_shaderAverageInit.bind();
-    g_shaderAverageInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderAverageInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     g_shaderAverageInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shaderAverageInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shaderAverageInit.setUniform("Alpha", g_opacity);
@@ -966,7 +1006,7 @@ void RenderWeightedSum()
     glEnable(GL_BLEND);
 
     g_shaderWeightedSumInit.bind();
-    g_shaderWeightedSumInit.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shaderWeightedSumInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     g_shaderWeightedSumInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shaderWeightedSumInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shaderWeightedSumInit.setUniform("Alpha", g_opacity);
@@ -997,7 +1037,16 @@ void RenderBSP()
     glClearColor(g_backgroundColor[0], g_backgroundColor[1], g_backgroundColor[2], 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-#ifdef WITH_BSP
+    // waiting for the buffer
+    if (g_syncBuffer)
+    {
+        GLenum waitReturn = GL_UNSIGNALED;
+        while (waitReturn != GL_ALREADY_SIGNALED && waitReturn != GL_CONDITION_SATISFIED)
+        {
+            waitReturn = glClientWaitSync(g_syncBuffer, GL_SYNC_FLUSH_COMMANDS_BIT, 1);
+        }
+    }
+
     glEnable(GL_DEPTH_TEST);
 
     glEnable(GL_BLEND);
@@ -1005,16 +1054,26 @@ void RenderBSP()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     g_shader3d.bind();
-    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projetionMatrix * g_modelViewMatrix));
+    g_shader3d.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
     g_shader3d.setUniform("ModelViewMatrix", g_modelViewMatrix);
     g_shader3d.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
     g_shader3d.setUniform("Alpha", g_opacity);
-    bsp::Render(g_bspRootTree, g_modelViewMatrix);
+
+    glm::mat4 inverseViewMatrix = glm::inverse(g_modelViewMatrix);
+    glm::vec3 cameraPosition = glm::vec3(glm::column(inverseViewMatrix, 3));
+    std::vector<unsigned int> bspIndices = g_bspTree->sort(cameraPosition);
+    std::memcpy(g_bspIndicesBufferData, bspIndices.data(), bspIndices.size() * sizeof(unsigned int));
+
+    glBindVertexArray(g_bspVaoId);
+    glDrawElements(GL_TRIANGLES, bspIndices.size(), GL_UNSIGNED_INT, 0);
 
     g_numGeoPasses++;
 
     glDisable(GL_BLEND);
-#endif
+
+    // lock the buffer:
+    glDeleteSync(g_syncBuffer);
+    g_syncBuffer = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
     CHECK_GL_ERRORS;
 }
@@ -1091,7 +1150,7 @@ void reshapeFunc(int w, int h)
         InitAccumulationRenderTargets();
     }
 
-    g_projetionMatrix = glm::perspective(glm::radians(FOVY), (float)g_imageWidth / (float)g_imageHeight, ZNEAR, ZFAR);
+    g_projectionMatrix = glm::perspective(glm::radians(FOVY), (float)g_imageWidth / (float)g_imageHeight, ZNEAR, ZFAR);
 
     glViewport(0, 0, g_imageWidth, g_imageHeight);
 
@@ -1272,19 +1331,20 @@ int main(int argc, char *argv[])
 {
     std::filesystem::current_path(std::filesystem::canonical(argv[0]).parent_path());
 
-    printf("dual_depth_peeling - sample comparing multiple order independent transparency techniques\n");
-    printf("  Commands:\n");
-    printf("     A/D       - Change uniform opacity\n");
-    printf("     0         - Normal blending mode\n");
-    printf("     1         - Dual peeling mode\n");
-    printf("     2         - Front to back peeling mode\n");
-    printf("     3         - Weighted average mode\n");
-    printf("     4         - Weighted sum mode\n");
-    printf("     5         - BSP mode\n");
-    printf("     R         - Reload all shaders\n");
-    printf("     B         - Change background color\n");
-    printf("     Q         - Toggle occlusion queries\n");
-    printf("     +/-       - Change number of geometry passes\n\n");
+    std::cout << "dual_depth_peeling - sample comparing multiple order independent transparency techniques" << std::endl;
+    std::cout << "  Commands:" << std::endl;
+    std::cout << "     A/D       - Change uniform opacity" << std::endl;
+    std::cout << "     0         - Normal blending mode" << std::endl;
+    std::cout << "     1         - Dual peeling mode" << std::endl;
+    std::cout << "     2         - Front to back peeling mode" << std::endl;
+    std::cout << "     3         - Weighted average mode" << std::endl;
+    std::cout << "     4         - Weighted sum mode" << std::endl;
+    std::cout << "     5         - BSP mode" << std::endl;
+    std::cout << "     R         - Reload all shaders" << std::endl;
+    std::cout << "     B         - Change background color" << std::endl;
+    std::cout << "     Q         - Toggle occlusion queries" << std::endl;
+    std::cout << "     +/-       - Change number of geometry passes" << std::endl;
+    std::cout << std::endl;
 
     glutInit(&argc, argv);
     glutSetOption(GLUT_MULTISAMPLE, 8);
@@ -1297,20 +1357,21 @@ int main(int argc, char *argv[])
     const int windowHandle = glutCreateWindow("Order Independent Transparency");
     if (windowHandle == -1)
     {
-        printf("glutCreateWindow failed. Exiting...\n");
+        std::cerr << "glutCreateWindow failed. Exiting..." << std::endl;
         exit(1);
     }
 
     if (glewInit() != GLEW_OK)
     {
-        printf("glewInit failed. Exiting...\n");
+        std::cerr << "glewInit failed. Exiting..." << std::endl;
         exit(1);
     }
 
-    printf("GL version %s\n", glGetString(GL_VERSION));
-    printf("GL vendor %s\n", glGetString(GL_VENDOR));
-    printf("GL render %s\n", glGetString(GL_RENDERER));
-    printf("GLSL version %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+    std::cout << "GL version " << glGetString(GL_VERSION) << std::endl;
+    std::cout << "GL vendor " << glGetString(GL_VENDOR) << std::endl;
+    std::cout << "GL render " << glGetString(GL_RENDERER) << std::endl;
+    std::cout << "GLSL version " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+    std::cout << std::endl;
 
     InitGL();
     InitMenus();

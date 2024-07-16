@@ -21,7 +21,7 @@
 #include FT_FREETYPE_H
 
 #include <iostream>
-#include <sstream>
+#include <string>
 #include <array>
 #include <map>
 #include <filesystem>
@@ -273,42 +273,44 @@ void DrawOsd(char mode, float opacity, int numPasses, float fps)
 	int lineHeight = 20;
 	int margin = 5;
 
-	char buf[256];
+	std::string buf;
 
 	x1 += margin;
 	y1 += margin;
 
-	sprintf(buf, "Frame Rate: %.0f fps", fps);
+	buf = "Frame Rate: " + std::to_string(static_cast<int>(std::round(fps))) + " fps";
 	DrawText(buf, x1, y1, scale);
 	y1 += lineHeight;
 
-	sprintf(buf, "Geometry Passes: %d", numPasses);
+	buf = "Geometry Passes: " + std::to_string(numPasses);
 	DrawText(buf, x1, y1, scale);
 	y1 += lineHeight;
 
-	sprintf(buf, "Opacity: %.0f%%", opacity*100);
+	buf = "Opacity: " + std::to_string(static_cast<int>(std::round(opacity * 100))) + "%";
 	DrawText(buf, x1, y1, scale);
 	y1 += lineHeight;
 
 	switch (mode) {
 	    case NORMAL_BLENDING_MODE:
-	        sprintf(buf, "Normal Blending");
+	        buf = "Normal Blending";
 			break;
 		case DUAL_PEELING_MODE:
-			sprintf(buf, "Dual Peeling");
+			buf = "Dual Peeling";
 			break;
 		case F2B_PEELING_MODE:
-			sprintf(buf, "Front Peeling");
+		    buf = "Front Peeling";
 			break;
 		case WEIGHTED_AVERAGE_MODE:
-			sprintf(buf, "Weighted Average");
+			buf = "Weighted Average";
 			break;
 		case WEIGHTED_SUM_MODE:
-			sprintf(buf, "Weighted Sum");
+			buf = "Weighted Sum";
 			break;
 		case BSP_MODE:
-	    	sprintf(buf, "Binary Space Partitioning");
+	    	buf = "Binary Space Partitioning";
             break;
+        default:
+            buf = "Unknown mode";
 	}
 
 	DrawText(buf, x1, y1, scale);

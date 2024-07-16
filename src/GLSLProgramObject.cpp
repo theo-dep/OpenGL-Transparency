@@ -111,7 +111,8 @@ void GLSLProgramObject::link()
     if (!success) {
         char temp[1024];
         glGetProgramInfoLog(_progId, 1024, NULL, temp);
-        printf("Failed to link program:\n%s\n", temp);
+        std::cerr << "Failed to link program:" << std::endl;
+        std::cerr << temp << std::endl;
 		exit(1);
     }
 }
