@@ -54,8 +54,8 @@ int g_imageWidth = 1024;
 int g_imageHeight = 768;
 
 Assimp::Importer g_importer;
-const aiScene *g_scene;
-const aiMesh *g_model;
+const aiScene *g_scene = nullptr;
+const aiMesh *g_model = nullptr;
 GLuint g_vboId, g_eboId, g_vaoId;
 GLuint g_sortedVboId, g_sortedEboId, g_sortedVaoId;
 unsigned int g_modelIndexCount;
@@ -64,6 +64,9 @@ bool g_useOQ = true;
 GLuint g_queryId;
 
 GLSLProgramObject g_shader3d;
+
+GLSLProgramObject g_shaderLinkedListInit;
+GLSLProgramObject g_shaderLinkedListFinal;
 
 GLSLProgramObject g_shaderDualInit;
 GLSLProgramObject g_shaderDualPeel;
@@ -82,7 +85,7 @@ GLSLProgramObject g_shaderWeightedSumInit;
 GLSLProgramObject g_shaderWeightedSumFinal;
 
 float g_opacity = 0.6f;
-char g_mode = DUAL_PEELING_MODE;
+char g_mode = LINKED_LIST_MODE;
 bool g_showOsd = true;
 bool g_bShowUI = true;
 unsigned g_numGeoPasses = 0;
@@ -103,6 +106,16 @@ glm::mat4 g_modelViewMatrix;
 glm::vec3 g_white(1);
 glm::vec3 g_black(0);
 glm::vec3 g_backgroundColor = g_white;
+
+enum BufferNames {
+    COUNTER_BUFFER = 0,
+    LINKED_LIST_BUFFER
+};
+
+GLuint g_linkedListMaxNodes;
+GLuint g_linkedListBufferId[2];
+GLuint g_linkedListHeadPointerTexId;
+GLuint g_linkedListClearBufferId;
 
 GLuint g_dualBackBlenderFboId;
 GLuint g_dualPeelingSingleFboId;
@@ -136,6 +149,46 @@ GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
                            GL_COLOR_ATTACHMENT5,
                            GL_COLOR_ATTACHMENT6
 };
+
+//--------------------------------------------------------------------------
+void InitLinkedListRenderTargets()
+{
+    glGenBuffers(2, g_linkedListBufferId);
+    g_linkedListMaxNodes = 20 * g_imageWidth * g_imageHeight;
+    const GLint nodeSize{ 5 * sizeof(GLfloat) + sizeof(GLuint) }; // The size of a linked list node
+
+    // Our atomic counter
+    glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, g_linkedListBufferId[COUNTER_BUFFER]);
+    glBufferData(GL_ATOMIC_COUNTER_BUFFER, sizeof(GLuint), NULL, GL_DYNAMIC_DRAW);
+
+    // The buffer for the head pointers, as an image texture
+    glGenTextures(1, &g_linkedListHeadPointerTexId);
+    glBindTexture(GL_TEXTURE_2D, g_linkedListHeadPointerTexId);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32UI, g_imageWidth, g_imageHeight);
+    glBindImageTexture(0, g_linkedListHeadPointerTexId, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+
+    // The buffer of linked lists
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, g_linkedListBufferId[LINKED_LIST_BUFFER]);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, g_linkedListMaxNodes * nodeSize, NULL, GL_DYNAMIC_DRAW);
+
+    const std::vector<GLuint> headPtrClearBuf(g_imageWidth * g_imageHeight, 0xffffffff);
+    glGenBuffers(1, &g_linkedListClearBufferId);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, g_linkedListClearBufferId);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, headPtrClearBuf.size() * sizeof(GLuint), &headPtrClearBuf[0], GL_STATIC_COPY);
+
+    // Release for other targets
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
+void DeleteLinkedListRenderTargets()
+{
+    glDeleteBuffers(2, g_linkedListBufferId);
+    glDeleteTextures(1, &g_linkedListHeadPointerTexId);
+    glDeleteBuffers(1, &g_linkedListClearBufferId);
+}
 
 //--------------------------------------------------------------------------
 void InitDualPeelingRenderTargets()
@@ -544,6 +597,16 @@ void BuildShaders()
     g_shader3d.attachFragmentShader("3d_fragment.glsl");
     g_shader3d.link();
 
+    g_shaderLinkedListInit.attachVertexShader("shade_vertex.glsl");
+    g_shaderLinkedListInit.attachVertexShader("linked_list_init_vertex.glsl");
+    g_shaderLinkedListInit.attachFragmentShader("shade_fragment.glsl");
+    g_shaderLinkedListInit.attachFragmentShader("linked_list_init_fragment.glsl");
+    g_shaderLinkedListInit.link();
+
+    g_shaderLinkedListFinal.attachVertexShader("linked_list_final_vertex.glsl");
+    g_shaderLinkedListFinal.attachFragmentShader("linked_list_final_fragment.glsl");
+    g_shaderLinkedListFinal.link();
+
     g_shaderDualInit.attachVertexShader("dual_peeling_init_vertex.glsl");
     g_shaderDualInit.attachFragmentShader("dual_peeling_init_fragment.glsl");
     g_shaderDualInit.link();
@@ -614,6 +677,9 @@ void DestroyShaders()
 {
     g_shader3d.destroy();
 
+    g_shaderLinkedListInit.destroy();
+    g_shaderLinkedListFinal.destroy();
+
     g_shaderDualInit.destroy();
     g_shaderDualPeel.destroy();
     g_shaderDualBlend.destroy();
@@ -646,6 +712,7 @@ void ReloadShaders()
 void InitGL()
 {
     // Allocate render targets first
+    InitLinkedListRenderTargets();
     InitDualPeelingRenderTargets();
     InitFrontPeelingRenderTargets();
     InitAccumulationRenderTargets();
@@ -714,6 +781,57 @@ void RenderNormalBlending()
     DrawModel(true);
 
     glDisable(GL_BLEND);
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
+void RenderLinkedList()
+{
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+
+    // ---------------------------------------------------------------------
+    // 1. Clear buffers
+    // ---------------------------------------------------------------------
+
+    constexpr GLuint zero{ 0 };
+    glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, g_linkedListBufferId[COUNTER_BUFFER]);
+    glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), &zero);
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, g_linkedListClearBufferId);
+    glBindTexture(GL_TEXTURE_2D, g_linkedListHeadPointerTexId);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, g_imageWidth, g_imageHeight, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);
+
+    CHECK_GL_ERRORS;
+
+    // ---------------------------------------------------------------------
+    // 2. Create the linked list
+    // ---------------------------------------------------------------------
+
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+    g_shaderLinkedListInit.bind();
+    g_shaderLinkedListInit.setUniform("MaxNodes", g_linkedListMaxNodes);
+    g_shaderLinkedListInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
+    g_shaderLinkedListInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
+    g_shaderLinkedListInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
+    g_shaderLinkedListInit.setUniform("Alpha", g_opacity);
+    DrawModel();
+
+    // ---------------------------------------------------------------------
+    // 3. Draw the linked list
+    // ---------------------------------------------------------------------
+
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+    g_shaderLinkedListFinal.bind();
+    g_shaderLinkedListFinal.setUniform("BackgroundColor", g_backgroundColor);
+    DrawFullScreenQuad();
 
     CHECK_GL_ERRORS;
 }
@@ -1094,6 +1212,9 @@ void displayFunc()
         case NORMAL_BLENDING_MODE:
             RenderNormalBlending();
             break;
+        case LINKED_LIST_MODE:
+            RenderLinkedList();
+            break;
         case DUAL_PEELING_MODE:
             RenderDualPeeling();
             break;
@@ -1139,6 +1260,9 @@ void reshapeFunc(int w, int h)
     {
         g_imageWidth = w;
         g_imageHeight = h;
+
+        DeleteLinkedListRenderTargets();
+        InitLinkedListRenderTargets();
 
         DeleteDualPeelingRenderTargets();
         InitDualPeelingRenderTargets();
@@ -1267,18 +1391,21 @@ void keyboardFunc(unsigned char key, int x, int y)
             g_mode = NORMAL_BLENDING_MODE;
             break;
         case '1':
-            g_mode = DUAL_PEELING_MODE;
+            g_mode = LINKED_LIST_MODE;
             break;
         case '2':
-            g_mode = F2B_PEELING_MODE;
+            g_mode = DUAL_PEELING_MODE;
             break;
         case '3':
-            g_mode = WEIGHTED_AVERAGE_MODE;
+            g_mode = F2B_PEELING_MODE;
             break;
         case '4':
-            g_mode = WEIGHTED_SUM_MODE;
+            g_mode = WEIGHTED_AVERAGE_MODE;
             break;
         case '5':
+            g_mode = WEIGHTED_SUM_MODE;
+            break;
+        case '6':
             g_mode = BSP_MODE;
             break;
         case 'a':

@@ -31,6 +31,7 @@ public:
 
 	void unbind();
 
+	void setUniform(const std::string& name, GLuint val);
 	void setUniform(const std::string& name, GLfloat val);
 	void setUniform(const std::string& name, const glm::vec3& val);
 	void setUniform(const std::string& name, const glm::mat3& val);

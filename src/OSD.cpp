@@ -294,6 +294,9 @@ void DrawOsd(char mode, float opacity, int numPasses, float fps)
 	    case NORMAL_BLENDING_MODE:
 	        buf = "Normal Blending";
 			break;
+		case LINKED_LIST_MODE:
+		    buf = "Linked List";
+		    break;
 		case DUAL_PEELING_MODE:
 			buf = "Dual Peeling";
 			break;
