@@ -45,6 +45,10 @@ public:
 		bindTexture(GL_TEXTURE_2D, texname, texid, texunit);
 	}
 
+	void bindTexture2DArray(const std::string& texname, GLuint texid, int texunit) {
+		bindTexture(GL_TEXTURE_2D_ARRAY, texname, texid, texunit);
+	}
+
 	void bindTexture3D(const std::string& texname, GLuint texid, int texunit) {
 		bindTexture(GL_TEXTURE_3D, texname, texid, texunit);
 	}

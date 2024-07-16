@@ -297,6 +297,9 @@ void DrawOsd(char mode, float opacity, int numPasses, float fps)
 		case LINKED_LIST_MODE:
 		    buf = "Linked List";
 		    break;
+		case A_BUFFER_MODE:
+		    buf = "A-Buffer";
+		    break;
 		case DUAL_PEELING_MODE:
 			buf = "Dual Peeling";
 			break;
