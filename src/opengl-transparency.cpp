@@ -54,8 +54,8 @@ int g_imageWidth = 1024;
 int g_imageHeight = 768;
 
 Assimp::Importer g_importer;
-const aiScene *g_scene;
-const aiMesh *g_model;
+const aiScene *g_scene = nullptr;
+const aiMesh *g_model = nullptr;
 GLuint g_vboId, g_eboId, g_vaoId;
 GLuint g_sortedVboId, g_sortedEboId, g_sortedVaoId;
 unsigned int g_modelIndexCount;
@@ -64,6 +64,12 @@ bool g_useOQ = true;
 GLuint g_queryId;
 
 GLSLProgramObject g_shader3d;
+
+GLSLProgramObject g_shaderLinkedListInit;
+GLSLProgramObject g_shaderLinkedListFinal;
+
+GLSLProgramObject g_shaderABufferInit;
+GLSLProgramObject g_shaderABufferFinal;
 
 GLSLProgramObject g_shaderDualInit;
 GLSLProgramObject g_shaderDualPeel;
@@ -82,7 +88,7 @@ GLSLProgramObject g_shaderWeightedSumInit;
 GLSLProgramObject g_shaderWeightedSumFinal;
 
 float g_opacity = 0.6f;
-char g_mode = DUAL_PEELING_MODE;
+char g_mode = LINKED_LIST_MODE;
 bool g_showOsd = true;
 bool g_bShowUI = true;
 unsigned g_numGeoPasses = 0;
@@ -103,6 +109,23 @@ glm::mat4 g_modelViewMatrix;
 glm::vec3 g_white(1);
 glm::vec3 g_black(0);
 glm::vec3 g_backgroundColor = g_white;
+
+enum BufferNames {
+    COUNTER_BUFFER = 0,
+    LINKED_LIST_BUFFER
+};
+
+GLuint g_linkedListMaxNodes;
+GLuint g_linkedListBufferId[2];
+GLuint g_linkedListHeadPointerTexId;
+GLuint g_linkedListClearBufferId;
+
+#define ABUFFER_SIZE 16
+
+GLuint g_aBufferTexId;
+GLuint g_aBufferCounterTexId;
+GLuint g_aBufferClearBufferId;
+GLuint g_aBufferClearBufferCounterId;
 
 GLuint g_dualBackBlenderFboId;
 GLuint g_dualPeelingSingleFboId;
@@ -136,6 +159,103 @@ GLenum g_drawBuffers[] = { GL_COLOR_ATTACHMENT0,
                            GL_COLOR_ATTACHMENT5,
                            GL_COLOR_ATTACHMENT6
 };
+
+//--------------------------------------------------------------------------
+void InitLinkedListRenderTargets()
+{
+    glGenBuffers(2, g_linkedListBufferId);
+    g_linkedListMaxNodes = 20 * g_imageWidth * g_imageHeight;
+    const GLint nodeSize{ 5 * sizeof(GLfloat) + sizeof(GLuint) }; // The size of a linked list node
+
+    // Our atomic counter
+    glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, g_linkedListBufferId[COUNTER_BUFFER]);
+    glBufferData(GL_ATOMIC_COUNTER_BUFFER, sizeof(GLuint), NULL, GL_DYNAMIC_DRAW);
+
+    // The buffer for the head pointers, as an image texture
+    glGenTextures(1, &g_linkedListHeadPointerTexId);
+    glBindTexture(GL_TEXTURE_2D, g_linkedListHeadPointerTexId);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32UI, g_imageWidth, g_imageHeight);
+
+    // The buffer of linked lists
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, g_linkedListBufferId[LINKED_LIST_BUFFER]);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, g_linkedListMaxNodes * nodeSize, NULL, GL_DYNAMIC_DRAW);
+
+    const std::vector<GLuint> headPtrClearBuf(g_imageWidth * g_imageHeight, 0xffffffff);
+    glGenBuffers(1, &g_linkedListClearBufferId);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, g_linkedListClearBufferId);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, headPtrClearBuf.size() * sizeof(GLuint), &headPtrClearBuf[0], GL_STATIC_COPY);
+
+    // Release for other targets
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
+void DeleteLinkedListRenderTargets()
+{
+    glDeleteBuffers(2, g_linkedListBufferId);
+    glDeleteTextures(1, &g_linkedListHeadPointerTexId);
+    glDeleteBuffers(1, &g_linkedListClearBufferId);
+}
+
+//--------------------------------------------------------------------------
+void InitABufferRenderTarget()
+{
+    // Initialize A-Buffer storage. It is composed of a fragment buffer with
+    // g_aBufferSize layers and a "counter" buffer used to maintain the number
+    // of fragments stored per pixel.
+
+    // A-Buffer storage
+    glGenTextures(1, &g_aBufferTexId);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, g_aBufferTexId);
+
+    // Set filter
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Texture creation
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA32F, g_imageWidth, g_imageHeight, ABUFFER_SIZE);
+
+    CHECK_GL_ERRORS;
+
+    // A-Buffer per-pixel counter
+    glGenTextures(1, &g_aBufferCounterTexId);
+    glBindTexture(GL_TEXTURE_2D, g_aBufferCounterTexId);
+
+    // Set filter
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Texture creation
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32UI, g_imageWidth, g_imageHeight);
+
+    CHECK_GL_ERRORS;
+
+    const std::vector<glm::vec4> aBufferClearBuf(g_imageWidth * g_imageHeight * ABUFFER_SIZE, glm::vec4(0));
+    glGenBuffers(1, &g_aBufferClearBufferId);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, g_aBufferClearBufferId);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, aBufferClearBuf.size() * sizeof(glm::vec4), &aBufferClearBuf[0], GL_STATIC_COPY);
+
+    const std::vector<GLuint> aBufferClearBufCounter(g_imageWidth * g_imageHeight, 0);
+    glGenBuffers(1, &g_aBufferClearBufferCounterId);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, g_aBufferClearBufferCounterId);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, aBufferClearBufCounter.size() * sizeof(GLuint), &aBufferClearBufCounter[0], GL_STATIC_COPY);
+
+    // Release for other targets
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
+void DeleteABufferRenderTarget()
+{
+    glDeleteTextures(1, &g_aBufferTexId);
+    glDeleteTextures(1, &g_aBufferCounterTexId);
+    glDeleteBuffers(1, &g_aBufferClearBufferId);
+    glDeleteBuffers(1, &g_aBufferClearBufferCounterId);
+}
 
 //--------------------------------------------------------------------------
 void InitDualPeelingRenderTargets()
@@ -544,6 +664,26 @@ void BuildShaders()
     g_shader3d.attachFragmentShader("3d_fragment.glsl");
     g_shader3d.link();
 
+    g_shaderLinkedListInit.attachVertexShader("shade_vertex.glsl");
+    g_shaderLinkedListInit.attachVertexShader("linked_list_init_vertex.glsl");
+    g_shaderLinkedListInit.attachFragmentShader("shade_fragment.glsl");
+    g_shaderLinkedListInit.attachFragmentShader("linked_list_init_fragment.glsl");
+    g_shaderLinkedListInit.link();
+
+    g_shaderLinkedListFinal.attachVertexShader("linked_list_final_vertex.glsl");
+    g_shaderLinkedListFinal.attachFragmentShader("linked_list_final_fragment.glsl");
+    g_shaderLinkedListFinal.link();
+
+    g_shaderABufferInit.attachVertexShader("shade_vertex.glsl");
+    g_shaderABufferInit.attachVertexShader("a_buffer_init_vertex.glsl");
+    g_shaderABufferInit.attachFragmentShader("shade_fragment.glsl");
+    g_shaderABufferInit.attachFragmentShader("a_buffer_init_fragment.glsl");
+    g_shaderABufferInit.link();
+
+    g_shaderABufferFinal.attachVertexShader("a_buffer_final_vertex.glsl");
+    g_shaderABufferFinal.attachFragmentShader("a_buffer_final_fragment.glsl");
+    g_shaderABufferFinal.link();
+
     g_shaderDualInit.attachVertexShader("dual_peeling_init_vertex.glsl");
     g_shaderDualInit.attachFragmentShader("dual_peeling_init_fragment.glsl");
     g_shaderDualInit.link();
@@ -614,6 +754,12 @@ void DestroyShaders()
 {
     g_shader3d.destroy();
 
+    g_shaderLinkedListInit.destroy();
+    g_shaderLinkedListFinal.destroy();
+
+    g_shaderABufferInit.destroy();
+    g_shaderABufferFinal.destroy();
+
     g_shaderDualInit.destroy();
     g_shaderDualPeel.destroy();
     g_shaderDualBlend.destroy();
@@ -646,6 +792,8 @@ void ReloadShaders()
 void InitGL()
 {
     // Allocate render targets first
+    InitLinkedListRenderTargets();
+    InitABufferRenderTarget();
     InitDualPeelingRenderTargets();
     InitFrontPeelingRenderTargets();
     InitAccumulationRenderTargets();
@@ -714,6 +862,116 @@ void RenderNormalBlending()
     DrawModel(true);
 
     glDisable(GL_BLEND);
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
+void RenderLinkedList()
+{
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+
+    glBindImageTexture(0, g_linkedListHeadPointerTexId, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+
+    // ---------------------------------------------------------------------
+    // 1. Clear buffers
+    // ---------------------------------------------------------------------
+
+    constexpr GLuint zero{ 0 };
+    glBindBufferBase(GL_ATOMIC_COUNTER_BUFFER, 0, g_linkedListBufferId[COUNTER_BUFFER]);
+    glBufferSubData(GL_ATOMIC_COUNTER_BUFFER, 0, sizeof(GLuint), &zero);
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, g_linkedListClearBufferId);
+    glBindTexture(GL_TEXTURE_2D, g_linkedListHeadPointerTexId);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, g_imageWidth, g_imageHeight, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);
+
+    CHECK_GL_ERRORS;
+
+    // ---------------------------------------------------------------------
+    // 2. Create the linked list
+    // ---------------------------------------------------------------------
+
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+    g_shaderLinkedListInit.bind();
+    g_shaderLinkedListInit.setUniform("MaxNodes", g_linkedListMaxNodes);
+    g_shaderLinkedListInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
+    g_shaderLinkedListInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
+    g_shaderLinkedListInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
+    g_shaderLinkedListInit.setUniform("Alpha", g_opacity);
+    DrawModel();
+
+    // ---------------------------------------------------------------------
+    // 3. Draw the linked list
+    // ---------------------------------------------------------------------
+
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+    g_shaderLinkedListFinal.bind();
+    g_shaderLinkedListFinal.setUniform("BackgroundColor", g_backgroundColor);
+    DrawFullScreenQuad();
+
+    CHECK_GL_ERRORS;
+}
+
+//--------------------------------------------------------------------------
+void RenderABuffer()
+{
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+
+    glBindImageTexture(0, g_aBufferTexId, 0, GL_TRUE, 0,  GL_READ_WRITE, GL_RGBA32F);
+    glBindImageTexture(1, g_aBufferCounterTexId, 0, GL_FALSE, 0,  GL_READ_WRITE, GL_R32UI);
+
+    // ---------------------------------------------------------------------
+    // 1. Clear buffers
+    // ---------------------------------------------------------------------
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, g_aBufferClearBufferId);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, g_aBufferTexId);
+    glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, 0, g_imageWidth, g_imageHeight, ABUFFER_SIZE, GL_RGBA, GL_FLOAT, NULL);
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, g_aBufferClearBufferCounterId);
+    glBindTexture(GL_TEXTURE_2D, g_aBufferCounterTexId);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, g_imageWidth, g_imageHeight, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);
+
+    CHECK_GL_ERRORS;
+
+    // ---------------------------------------------------------------------
+    // 2. Fill the A-Buffer
+    // ---------------------------------------------------------------------
+
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+    g_shaderABufferInit.bind();
+    g_shaderABufferInit.setUniform("ModelViewProjectionMatrix", (g_projectionMatrix * g_modelViewMatrix));
+    g_shaderABufferInit.setUniform("ModelViewMatrix", g_modelViewMatrix);
+    g_shaderABufferInit.setUniform("NormalMatrix", normalMatrix(g_modelViewMatrix));
+    g_shaderABufferInit.bindTexture2DArray("aBufferTex", g_aBufferTexId, 0);
+    g_shaderABufferInit.bindTexture2D("aBufferCounterTex", g_aBufferCounterTexId, 1);
+    DrawModel();
+
+    // ---------------------------------------------------------------------
+    // 3. Resolve the A-Buffer
+    // ---------------------------------------------------------------------
+
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+    g_shaderABufferFinal.bind();
+    g_shaderABufferFinal.setUniform("BackgroundColor", g_backgroundColor);
+    g_shaderABufferFinal.setUniform("Alpha", g_opacity);
+    g_shaderABufferFinal.bindTexture2DArray("aBufferTex", g_aBufferTexId, 0);
+    g_shaderABufferFinal.bindTexture2D("aBufferCounterTex", g_aBufferCounterTexId, 1);
+    DrawFullScreenQuad();
 
     CHECK_GL_ERRORS;
 }
@@ -1094,6 +1352,12 @@ void displayFunc()
         case NORMAL_BLENDING_MODE:
             RenderNormalBlending();
             break;
+        case LINKED_LIST_MODE:
+            RenderLinkedList();
+            break;
+        case A_BUFFER_MODE:
+            RenderABuffer();
+            break;
         case DUAL_PEELING_MODE:
             RenderDualPeeling();
             break;
@@ -1139,6 +1403,12 @@ void reshapeFunc(int w, int h)
     {
         g_imageWidth = w;
         g_imageHeight = h;
+
+        DeleteLinkedListRenderTargets();
+        InitLinkedListRenderTargets();
+
+        DeleteABufferRenderTarget();
+        InitABufferRenderTarget();
 
         DeleteDualPeelingRenderTargets();
         InitDualPeelingRenderTargets();
@@ -1267,18 +1537,24 @@ void keyboardFunc(unsigned char key, int x, int y)
             g_mode = NORMAL_BLENDING_MODE;
             break;
         case '1':
-            g_mode = DUAL_PEELING_MODE;
+            g_mode = LINKED_LIST_MODE;
             break;
         case '2':
-            g_mode = F2B_PEELING_MODE;
+            g_mode = A_BUFFER_MODE;
             break;
         case '3':
-            g_mode = WEIGHTED_AVERAGE_MODE;
+            g_mode = DUAL_PEELING_MODE;
             break;
         case '4':
-            g_mode = WEIGHTED_SUM_MODE;
+            g_mode = F2B_PEELING_MODE;
             break;
         case '5':
+            g_mode = WEIGHTED_AVERAGE_MODE;
+            break;
+        case '6':
+            g_mode = WEIGHTED_SUM_MODE;
+            break;
+        case '7':
             g_mode = BSP_MODE;
             break;
         case 'a':

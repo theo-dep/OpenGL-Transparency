@@ -31,6 +31,7 @@ public:
 
 	void unbind();
 
+	void setUniform(const std::string& name, GLuint val);
 	void setUniform(const std::string& name, GLfloat val);
 	void setUniform(const std::string& name, const glm::vec3& val);
 	void setUniform(const std::string& name, const glm::mat3& val);
@@ -42,6 +43,10 @@ public:
 
 	void bindTexture2D(const std::string& texname, GLuint texid, int texunit) {
 		bindTexture(GL_TEXTURE_2D, texname, texid, texunit);
+	}
+
+	void bindTexture2DArray(const std::string& texname, GLuint texid, int texunit) {
+		bindTexture(GL_TEXTURE_2D_ARRAY, texname, texid, texunit);
 	}
 
 	void bindTexture3D(const std::string& texname, GLuint texid, int texunit) {

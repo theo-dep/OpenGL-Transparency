@@ -12,6 +12,8 @@
 
 enum {
 	NORMAL_BLENDING_MODE,
+	LINKED_LIST_MODE,
+	A_BUFFER_MODE,
 	DUAL_PEELING_MODE,
 	F2B_PEELING_MODE,
 	WEIGHTED_AVERAGE_MODE,
@@ -24,7 +26,7 @@ enum {
 { \
     GLenum err = glGetError(); \
     if (err) \
-        printf( "Error %s at line %d\n", gluErrorString(err), __LINE__); \
+        printf( "Error %s at file %s, line %d\n", gluErrorString(err), __FILE__, __LINE__); \
 }
 #else
 #define CHECK_GL_ERRORS {}

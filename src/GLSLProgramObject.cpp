@@ -127,6 +127,12 @@ void GLSLProgramObject::unbind()
 	glUseProgram(0);
 }
 
+void GLSLProgramObject::setUniform(const std::string& name, GLuint val)
+{
+	GLint id = glGetUniformLocation(_progId, name.c_str());
+	glUniform1uiv(id, 1, &val);
+}
+
 void GLSLProgramObject::setUniform(const std::string& name, GLfloat val)
 {
 	GLint id = glGetUniformLocation(_progId, name.c_str());

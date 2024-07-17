@@ -11,7 +11,7 @@
 
 in vec3 TexCoord;
 
-uniform float Alpha;
+uniform float Alpha = 1.0;
 
 #define COLOR_FREQ 30.0
 #define ALPHA_FREQ 30.0

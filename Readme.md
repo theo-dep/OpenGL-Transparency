@@ -19,12 +19,25 @@ Dual Depth Peeling (Bavoil and Myers 2008).
   </div>
 </div>
 
+## Order Independent Transparency modes
+
+- OpenGL 4.4: Binary Space Partitioning (BSP) Tree with persistent mapped buffer
+  - Still work in progress since the NVidia dragon take days to build
+- OpenGL 4.3: Sorted Linked List
+- OpenGL 4.2: Sorted A-Buffer (Image Load Store)
+- OpenGL 2 and 3.3 (initial NVidia sample):
+  - Dual Depth Peeling
+  - Front-to-Back Peeling
+  - Weighted Average
+  - Weighted Sum
+
 ## Links
 
 - https://developer.download.nvidia.com/SDK/10/opengl/screenshots/samples/dual_depth_peeling.html
 - https://developer.nvidia.com/content/transparency-or-translucency-rendering
 - [DualDepthPeeling.pdf](doc/DualDepthPeeling.pdf)
 - [OrderIndependentTransparency.pdf](doc/OrderIndependentTransparency.pdf)
+- [OrderIndependentTransparency-4.X.pdf](doc/order-independent-transparency-opengl.pdf)
 
 ## Dependencies
 
